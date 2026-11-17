@@ -131,7 +131,7 @@ def apply_signals(case: Case, reader: NoteReader | None = None) -> Case:
             for flag, why in reader(case).items():
                 flags.setdefault(flag, why)
         except Exception as e:  # any LLM failure -> a person reads it
-            flags.setdefault("unreadable", f"note reader failed: {type(e).__name__}")
+            flags.setdefault("unreadable", f"note reader failed: {type(e).__name__}: {str(e)[:80]}")
     elif case.customer_note and not customer_note_cleared(case.customer_note):
         flags.setdefault("unreadable", "no LLM available and the customer note is long, non-English, or contains numbers")
 

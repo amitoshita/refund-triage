@@ -136,5 +136,6 @@ def decide(case: Case, rules: RuleSet, guardrails: Guardrails) -> Decision:
         reasons.append(FiredRule("kill_switch", Lane.POLICY, "Kill switch is on: every case goes to a person.", system=True))
 
     if reasons:
+        reasons.sort(key=lambda r: LANE_PRECEDENCE.index(r.lane) if r.lane in LANE_PRECEDENCE else len(LANE_PRECEDENCE))
         return Decision(case.request_id, "human", _lane(reasons), reasons, overridden, None, rules.version)
     return Decision(case.request_id, "auto_approve", None, [], overridden, best.id, rules.version)
