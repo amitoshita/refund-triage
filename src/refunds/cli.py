@@ -70,9 +70,12 @@ def cmd_models(args):
 
 
 def cmd_eval_notes(args):
-    from refunds.evaluate import run_note_eval
+    from refunds.evaluate import run_heldout, run_note_eval
 
-    run_note_eval(args.models)
+    if args.heldout:
+        run_heldout(args.models or [load_config().llm.model])
+    else:
+        run_note_eval(args.models)
 
 
 def cmd_backtest(args):
@@ -92,6 +95,7 @@ def main(argv=None):
     sub.add_parser("models", help="check which configured models the API key can use").set_defaults(fn=cmd_models)
     e = sub.add_parser("eval-notes", help="score note readers on the labelled set")
     e.add_argument("--models", nargs="*")
+    e.add_argument("--heldout", action="store_true", help="score the held-out set instead")
     e.set_defaults(fn=cmd_eval_notes)
     b = sub.add_parser("backtest", help="replay history: LLM vs keyword fallback")
     b.add_argument("--model")

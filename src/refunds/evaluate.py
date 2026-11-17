@@ -169,3 +169,39 @@ def run_backtest(model: str | None = None) -> None:
     print(f"Fallback 'unreadable' total: {len(unreadable)} customer notes (long, non-English, or digits).")
     print(f"\nLLM usage this run: {reader.usage.calls} API calls, {reader.usage.cache_hits} cache hits, "
           f"cost {('$%.4f' % reader.usage.cost(model)) if model in PRICES else 'price unknown'}")  # fmt: skip
+
+
+# ---- held-out set --------------------------------------------------------------------
+
+HELDOUT = ROOT / "eval" / "heldout_notes.yaml"
+
+
+def run_heldout(models: list[str]) -> None:
+    from refunds.ingest import normalise_row
+
+    base = {"request_id": "RF-9000", "requested_at": "2026-10-01", "customer_id": "CU-9", "tenure_months": "20",
+            "prior_refunds_12m": "0", "amount_usd": "40", "category": "home", "payment_method": "card",
+            "days_since_delivery": "5", "fraud_flag": "no"}  # fmt: skip
+    items = yaml.safe_load(HELDOUT.read_text())["cases"]
+    cases = [(x, normalise_row({**base, "request_id": f"RF-9{i:03d}", "stated_reason": x["reason"],
+                                "customer_note": x.get("customer", ""), "support_note": x.get("support", "")}))
+             for i, x in enumerate(items)]  # fmt: skip
+    n_pos = sum(x["warning"] for x, _ in cases)
+    n_neg = len(cases) - n_pos
+    print(f"Held-out set: {n_pos} with warning signs, {n_neg} benign (labelled before running)\n")
+    readers = [("keyword fallback", None)] + [(m, LLMNoteReader(m, cache_path=ROOT / "llm_cache" / "heldout.json")) for m in models]
+    for name, reader in readers:
+        caught, missed, right, false = [], [], 0, []
+        for x, c in cases:
+            flags = apply_signals(c, reader).note_flags
+            if x["warning"]:
+                (caught if flags else missed).append(x["id"])
+                right += bool(flags & set(x["flags"]))
+            elif flags:
+                false.append(f"{x['id']}:{','.join(sorted(flags))}")
+        usage = getattr(reader, "usage", None)
+        cost = f" | ${usage.cost(name):.4f}" if usage and usage.cost(name) is not None else ""
+        print(f"{name:<20} recall {len(caught)}/{n_pos} | right flag {right}/{n_pos} | false flags {len(false)}/{n_neg}{cost}")
+        print(f"   missed: {missed or '-'}   false: {false or '-'}")
+        if reader is not None:
+            reader.save()
