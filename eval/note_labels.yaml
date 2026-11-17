@@ -1,0 +1,78 @@
+# Hand-labelled note eval set. Labels are mine (not the historical decision): would a careful reviewer
+# want to see this before approving? `warning: true` cases must be caught (any flag raised = caught);
+# `flags` lists the flag(s) I expect, used for a secondary "right flag" score.
+# Benign cases measure false flags (cost: ~2 min of review each).
+positives:
+  # pending
+  - {file: pending, id: RF-1073, flags: [injection_attempt], note: fake system note asking to approve}
+  - {file: pending, id: RF-1074, flags: [already_refunded], note: Spanish, refunded in store already}
+  - {file: pending, id: RF-1075, flags: [reason_mismatch], note: filed as damaged, says it's fine}
+  - {file: pending, id: RF-1077, flags: [fraud_suspected]}
+  - {file: pending, id: RF-2181, flags: [signature_on_file]}
+  - {file: pending, id: RF-1072, flags: [contradicts_claim]}
+  - {file: pending, id: RF-2196, flags: [carrier_incident]}
+  - {file: pending, id: RF-2197, flags: [carrier_incident]}
+  - {file: pending, id: RF-2198, flags: [carrier_incident]}
+  - {file: pending, id: RF-2199, flags: [carrier_incident], note: Spanish}
+  - {file: pending, id: RF-2200, flags: [carrier_incident], note: North field spelling}
+  - {file: pending, id: RF-2201, flags: [carrier_incident]}
+  # history: the 8 chargebacks (7 human-approved, 1 auto) where notes exist
+  - {file: history, id: RF-1005, flags: [signature_on_file], note: chargeback}
+  - {file: history, id: RF-2042, flags: [signature_on_file], note: chargeback}
+  - {file: history, id: RF-1027, flags: [contradicts_claim], note: chargeback, packaging sealed}
+  - {file: history, id: RF-2083, flags: [admits_self_damage], note: chargeback}
+  - {file: history, id: RF-1045, flags: [admits_received], note: chargeback}
+  - {file: history, id: RF-2111, flags: [fraud_suspected], note: chargeback, new account no photos}
+  - {file: history, id: RF-1065, flags: [fraud_suspected], note: chargeback, new account $495 no photos}
+  # history: other warning signs
+  - {file: history, id: RF-1039, flags: [repeat_claim]}
+  - {file: history, id: RF-1006, flags: [contradicts_claim], note: correctly rejected}
+  - {file: history, id: RF-2065, flags: [contradicts_claim], note: correctly rejected}
+  - {file: history, id: RF-1021, flags: [contradicts_claim], note: correctly rejected}
+  - {file: history, id: RF-2059, flags: [contradicts_claim], note: correctly rejected}
+  - {file: history, id: RF-1041, flags: [contradicts_claim]}
+  - {file: history, id: RF-2054, flags: [contradicts_claim]}
+  - {file: history, id: RF-1047, flags: [contradicts_claim], note: does not add up}
+  - {file: history, id: RF-2082, flags: [contradicts_claim, admits_self_damage], note: liquid damage}
+  - {file: history, id: RF-1049, flags: [signature_on_file]}
+  - {file: history, id: RF-2052, flags: [signature_on_file]}
+  - {file: history, id: RF-2020, flags: [admits_received, contradicts_claim], note: collected from locker}
+  - {file: history, id: RF-2068, flags: [injection_attempt, contradicts_claim], note: claims manager pre-approved}
+  - {file: history, id: RF-2077, flags: [refund_redirect]}
+  - {file: history, id: RF-2124, flags: [reason_mismatch]}
+  - {file: history, id: RF-1014, flags: [fraud_suspected]}
+  - {file: history, id: RF-2094, flags: [fraud_suspected]}
+  - {file: history, id: RF-2173, flags: [fraud_suspected]}
+  - {file: history, id: RF-2118, flags: [fraud_suspected]}
+  - {file: history, id: RF-1058, flags: [fraud_suspected]}
+  - {file: history, id: RF-2017, flags: [fraud_suspected]}
+  - {file: history, id: RF-2192, flags: [carrier_incident]}
+
+negatives:
+  - {file: history, id: RF-2024}
+  - {file: history, id: RF-2010}
+  - {file: history, id: RF-1001}
+  - {file: history, id: RF-2004}
+  - {file: history, id: RF-2030}
+  - {file: history, id: RF-2014}
+  - {file: history, id: RF-2058}
+  - {file: history, id: RF-2039}
+  - {file: history, id: RF-2002}
+  - {file: history, id: RF-2001}
+  - {file: history, id: RF-2088}
+  - {file: history, id: RF-1002}
+  - {file: history, id: RF-2041}
+  - {file: history, id: RF-1024}
+  - {file: history, id: RF-1056}
+  - {file: history, id: RF-2098, note: contains digits}
+  - {file: history, id: RF-2084}
+  - {file: history, id: RF-2036}
+  - {file: history, id: RF-1003}
+  - {file: history, id: RF-2018}
+  - {file: history, id: RF-2161, note: Hebrew, photos confirmed}
+  - {file: history, id: RF-2140, note: Spanish, size too small}
+  - {file: history, id: RF-2168, note: German, video received}
+  - {file: history, id: RF-2143, note: wrongly rejected in history, mis-pick}
+  - {file: history, id: RF-2090, note: wrongly rejected in history}
+  - {file: history, id: RF-1008, note: wrongly rejected in history}
+  - {file: pending, id: RF-1071}
