@@ -1,21 +1,127 @@
 # Refund triage
 
-Work in progress. See PLAN.md for the approved plan.
+Decides which refund requests can be approved automatically and sends the rest to a person, with the reason.
+Includes the two mechanisms from the brief: a **reviewer queue** and a **policy manager** who changes rules
+without an engineer and previews the impact before anything goes live.
 
 ## Run
+
+Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 and the dependencies on first run).
+
 ```bash
-uv sync
-uv run refunds run data/pending.csv          # decide a file -> out/decisions.csv (any CSV with the same columns)
-uv run streamlit run app/streamlit_app.py    # demo: reviewer queue + policy manager
-uv run pytest                                # tests
+uv run refunds run data/pending.csv          # decide a file -> prints routing, writes out/decisions.csv
+uv run streamlit run app/streamlit_app.py    # clickable demo at http://localhost:8501
+uv run pytest                                # 162 tests
 ```
-Optional: copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`. Without a key, the note reader uses the committed
-cache of LLM results (`llm_cache/`); notes not in the cache are flagged "unreadable" and go to a person.
-Other commands: `refunds models`, `refunds eval-notes [--heldout]`, `refunds backtest`, `refunds run FILE --no-llm`.
+
+`refunds run` accepts any CSV with the same columns as `pending.csv`. The demo can load one too (sidebar, "Requests file").
+
+### API key (optional)
+
+```bash
+cp .env.example .env    # then set ANTHROPIC_API_KEY=...
+```
+
+- **With a key:** the note reader calls `claude-haiku-5-5` for notes it hasn't seen, and the policy manager's
+  "Describe it in English" box can draft rules.
+- **Without a key:** everything still runs. The note reader uses the committed cache of LLM results
+  (`llm_cache/`, covers history and pending). Notes not in the cache are flagged "unreadable" and go to a person.
+  `--no-llm` forces the keyword fallback instead. The English rule box is off; the form builder and quick changes work.
+
+Other commands: `refunds models` (checks which configured models the key can use), `refunds eval-notes [--heldout]`,
+`refunds backtest`.
+
+## How it works
+
+```
+ CSV ──► ingest ──────────► signals ─────────────────────► engine ─────────────► auto-approve (logged)
+         normalise messy     staff note: photo? fraud-team   rules.yaml (data,       │
+         values; bad data    confirmed? (strict phrases)     versioned) + config     └► reviewer queue (lane + every reason)
+         becomes an issue,   notes: warning flags            guardrails ($500 max,        │
+         duplicates flagged  (LLM, or keyword fallback)      kill switch)                 └► decision log (SQLite, append-only)
+                                    ▲
+                     LLM can only ADD flags. It never approves.
+
+ Policy manager: edit / add rule ─► preview on history + pending (+ labelled proxy) ─► publish vN+1 ─► rollback
+```
+
+- **The money decision is deterministic.** `src/refunds/engine.py` applies the rules in `rules/rules.yaml`.
+  A case is auto-approved only if an `eligible` rule matches and no `block` rule fires (apart from ones that the
+  eligible rule explicitly overrides). Three locked rules (bad data, duplicates, warning signs in notes) can't be
+  switched off or overridden. Guardrails in `config.yaml` (global max per auto-approval, kill switch) sit above the
+  rules and are engineer-owned.
+- **Lanes have a fixed priority** (fraud > data > notes > carrier > partial > policy), so the order of rules in
+  the file can't change routing.
+- **The LLM** (`src/refunds/llm.py`) reads both notes and returns warning flags with evidence as strict JSON.
+  The schema has no way to say "approve". Notes are treated as untrusted data (RF-1073 contains a fake "system note";
+  it's flagged `injection_attempt` and goes to a person). Any LLM failure means the case goes to a person.
+- **Preview** (`src/refunds/preview.py`) replays history (248 decided requests) and pending under the draft
+  rules: cases that change route, $, how many newly auto-approved history cases went wrong before, and reviewer
+  minutes saved.
+
+| Folder | What |
+|---|---|
+| `src/refunds/` | ingest, signals, engine, rules schema, LLM reader, preview, versions, CLI |
+| `rules/` | the live rule set (`rules.yaml`) |
+| `app/` | Streamlit demo |
+| `eval/` | labelled note sets and results (`eval/RESULTS.md`) |
+| `docs/screenshots/` | screenshots of the demo |
+
+## The line (rules v1)
+
+Auto-approve only: wrong size, change of mind (both within 14 days), wrong item, damaged (not electronics; photo
+confirmed by staff if over $50), **up to $75**, no refunds in the last 12 months, fraud flag "no", clean data, no
+warning signs in the notes. Everything else goes to a person.
+
+Backtest on 248 decided requests: 106 auto-approved (43%, $3,346), 0 that went wrong historically (chargebacks,
+correct rejections, partials, policy violations). The old rule auto-approved 111, 4 of them wrong.
+Pending: RF-1069 and RF-1071 auto-approved, 19 to a person. Details in `PLAN.md` and `eval/RESULTS.md`.
+
+## AI: where it's used and where it isn't
+
+| Used | Not used |
+|---|---|
+| Reading free-text notes into warning flags (multilingual, phrased many ways) | The approve / route decision |
+| Drafting a rule from the manager's English (she confirms and previews) | Parsing amounts, dates, reasons, flags |
+| One-line English summary on the reviewer's card, labelled "verify" | Anything that can approve money |
+
+Model: `claude-haiku-5-5`, about $0.0002 per note. On the labelled development set it caught 41/41 notes with
+warning signs (keyword fallback: 36/41) with 0/27 false flags; on a held-out set written and labelled before
+running, 12/12 with 0/7 false flags. Sonnet 5.5 cost about 20x more and missed a chargeback note.
+Caveats and the full numbers: `eval/RESULTS.md`.
+
+## What's mocked or simplified
+
+- **"Request info" and "Escalate"** record the action and keep the case open as "waiting" / "escalated". No message
+  is sent to the customer, fraud team or carrier.
+- **Photo evidence and fraud-team confirmation** are read from the support agent's note with strict phrase matching.
+  In a real system they'd be structured fields (photo attached; fraud team verdict).
+- **Audit sample:** auto-approvals are marked for audit, but there's no separate audit screen.
+- **Single user, no auth.** The reviewer name is a text box. Demo state (live rules, versions, decisions) lives in
+  `out/demo/`; "Reset demo state" in the sidebar restores the seed rules.
+- Everything else in the demo is wired to the real engine, rules, preview and decision log.
 
 ## Assumptions
-- **Wrong size follows the change-of-mind return window (14 days).** Policy note #2 names only change of mind; we treat wrong size the same. Editable as the `return_window` rule.
+
+- **Wrong size follows the change-of-mind return window (14 days).** Policy note #2 names only change of mind.
+  Editable as the `return_window` rule.
 - **Late deliveries always go to a person** (policy #6: partials are the reviewer's call).
 - **Blank fraud flag = unknown**, routed to the fraud team, never treated as "no".
 - **Slashed dates are DD/MM/YYYY**, inferred from their position among ISO-dated rows in history.csv.
-- **"Fraud team confirmed stolen"** is read only from the support agent's note (trusted, internal), never from the customer's note or the LLM. It should become a structured field filled by the fraud team.
+- **History is not ground truth.** "Went wrong" combines outcomes (chargebacks, appeals, partials) with the
+  written policy. Auto-approved history cases were never reviewed, so errors there are under-counted; that's why
+  launch would be shadow mode plus an audit sample.
+- **Exact duplicate rows in history** (3) are export artefacts and are dropped; repeated IDs in new requests are kept
+  and sent to a person.
+
+## How I used AI coding tools
+
+I built this with Claude Code: planning, data profiling, code, tests and the demo. I reviewed each phase before
+the next one, and kept a running log of what I changed or threw away in `AI_NOTES.md`.
+
+One example: when planning the model comparison, the assistant told me "Haiku 5.5 doesn't exist" and wanted to
+compare Haiku 4.5 instead. I disagreed, and had it check the live API (`refunds models`): `claude-haiku-5-5` was
+available and Haiku 4.5 wasn't even enabled on my key. Haiku 5.5 ended up being the model we chose. Lesson:
+check model IDs against the API, not the assistant's memory. Other entries: I replaced its rule-order-dependent
+routing with fixed lane priority, and added system guardrails above the rules after noticing an override could
+auto-approve any amount.
