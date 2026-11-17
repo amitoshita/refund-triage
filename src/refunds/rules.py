@@ -97,7 +97,7 @@ class Rule(BaseModel):
     enabled: bool = True
     when: When
     lane: Lane | None = None  # block only
-    reason: str | None = None  # block only: reviewer-facing text, may use {field} placeholders
+    reason: str | None = None  # block only: reviewer-facing text; {field} placeholders, {limit} = the rule's first numeric threshold
     policy_ref: int | None = None  # policy note number this implements
     locked: bool = False  # safety rail: cannot be disabled or overridden
     overrides: list[str] = Field(default_factory=list)  # eligible only: block rule ids it lets through
@@ -117,7 +117,7 @@ class Rule(BaseModel):
             if self.overrides:
                 raise ValueError(f"block rule '{self.id}' cannot override other rules")
             placeholders = {f for _, f, _, _ in string.Formatter().parse(self.reason) if f}
-            unknown = placeholders - FIELDS.keys()
+            unknown = placeholders - FIELDS.keys() - {"limit"}
             if unknown:
                 raise ValueError(f"reason for '{self.id}' uses unknown placeholders {sorted(unknown)}")
         else:
