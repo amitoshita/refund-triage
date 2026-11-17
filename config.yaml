@@ -1,0 +1,11 @@
+# System-level settings. Engineer-owned: NOT editable from the policy rule editor.
+guardrails:
+  max_auto_amount_usd: 500   # no auto-approval above this, whatever the rules say (overrides can't bypass)
+  kill_switch: false         # true = every case goes to a person
+
+llm:
+  # Note reader. Candidates are compared in the eval; the cheapest that passes is set as `model`.
+  # Verify ids against the API's model list once a key is available (`refunds models`).
+  model: claude-haiku-5-5
+  candidates: [claude-haiku-5-5, claude-sonnet-5-5]
+  fallback_model: claude-haiku-4-5
