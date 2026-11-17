@@ -38,3 +38,10 @@ Sonnet 5.5 costs about 20 times more and missed a chargeback note.
 | claude-haiku-5-5 | 106 | $3,346 | 0 |
 
 Total API spend on all eval and backtest runs during development: about $0.90.
+
+## Known LLM error found outside the eval sets
+RF-2007 (history, confirmed stolen card, $305): Haiku 5.5 raised `admits_received` while its own evidence says
+"does not indicate the parcel arrived". Same self-contradicting pattern the v1 prompt showed on change-of-mind
+notes. Direction is safe (extra review, never a wrong approval), but it is why the stolen-card proxy preview
+shows 8 cases moving to auto with the LLM vs 9 with the keyword fallback. Possible fix: require the evidence to
+quote the note, or a cheap second check that drops flags whose evidence negates them.
