@@ -162,13 +162,18 @@ def suggestion(c, d):
 
 def case_card(c, d, latest):
     st.subheader(f"{c.request_id} · {money(c.amount_usd)} · {(c.reason or c.raw['stated_reason']).replace('_', ' ')}")
-    cols = st.columns(6)
-    cols[0].metric("Category", c.category or c.raw["category"] or "?")
-    cols[1].metric("Account age", f"{c.tenure_months} mo" if c.tenure_months is not None else "?")
-    cols[2].metric("Refunds (12m)", c.prior_refunds_12m if c.prior_refunds_12m is not None else "?")
-    cols[3].metric("Days since delivery", c.days_since_delivery if c.days_since_delivery is not None else "?")
-    cols[4].metric("Fraud flag", c.fraud_flag)
-    cols[5].metric("Channel", c.channel or "?")
+    facts = [
+        ("Category", c.category or c.raw["category"] or "?"),
+        ("Account age", f"{c.tenure_months} months" if c.tenure_months is not None else "missing"),
+        ("Refunds (12 mo)", c.prior_refunds_12m if c.prior_refunds_12m is not None else "missing"),
+        ("Days since delivery", c.days_since_delivery if c.days_since_delivery is not None else "missing"),
+        ("Fraud flag", c.fraud_flag),
+        ("Channel", c.channel or "?"),
+        ("Customer", c.customer_id or "missing"),
+    ]
+    for col, (label, value) in zip(st.columns(len(facts)), facts):
+        col.caption(label)
+        col.markdown(f"**{value}**")
 
     left, right = st.columns([3, 2])
     with left:
@@ -226,7 +231,10 @@ def case_card(c, d, latest):
 
     st.markdown("**Similar past requests** (same reason and category, similar amount)")
     sims = similar_history(c)
-    st.dataframe(sims, hide_index=True, width="stretch") if not sims.empty else st.caption("None found.")
+    if sims.empty:
+        st.caption("None found.")
+    else:
+        st.dataframe(sims, hide_index=True, width="stretch")
 
 
 def reviewer_page():
@@ -239,7 +247,7 @@ def reviewer_page():
     st.header("Reviewer queue")
     m = st.columns(4)
     m[0].metric("Requests in file", len(decisions))
-    m[1].metric("Auto-approved", len(auto), money(sum(c.amount_usd or 0 for c, _ in auto)), delta_color="off")
+    m[1].metric("Auto-approved", f"{len(auto)} · {money(sum(c.amount_usd or 0 for c, _ in auto))}")
     m[2].metric("Open in queue", len(open_))
     m[3].metric("Decided by reviewers", len(done))
 
@@ -257,15 +265,22 @@ def reviewer_page():
     if not shown:
         st.success("Nothing open in this lane.")
     else:
+        def status(c):
+            a = latest.get(c.request_id, {}).get("action")
+            return {"request_info": "waiting for info", "escalate": "escalated"}.get(a, "new")
+
         rows = [{
             "request": c.request_id, "amount": c.amount_usd, "reason": (c.reason or "?").replace("_", " "),
-            "lane": LANE_LABELS.get(str(d.lane)), "why (main reason)": d.reasons[0].text,
-            "warning signs": ", ".join(f.replace("_", " ") for f in sorted(c.note_flags)),
-            "status": "waiting for info" if latest.get(c.request_id, {}).get("action") == "request_info"
-            else "escalated" if latest.get(c.request_id, {}).get("action") == "escalate" else "new",
+            "status": status(c), "lane": LANE_LABELS.get(str(d.lane)),
+            "warning signs": ", ".join(f.replace("_", " ") for f in sorted(c.note_flags)) or "-",
+            "other reasons": " · ".join(r.text for r in d.reasons if r.rule_id != "note_warning_signs") or "-",
         } for c, d in shown]  # fmt: skip
         sel = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", on_select="rerun",
-                           selection_mode="single-row", column_config={"amount": st.column_config.NumberColumn(format="$%.2f")})  # fmt: skip
+                           selection_mode="single-row", column_config={
+                               "amount": st.column_config.NumberColumn(format="$%.2f", width="small"),
+                               "request": st.column_config.TextColumn(width="small"),
+                               "status": st.column_config.TextColumn(width="small"),
+                               "other reasons": st.column_config.TextColumn(width="large")})  # fmt: skip
         idx = sel.selection.rows[0] if sel.selection.rows else 0
         st.caption("Click a row to open it.")
         st.divider()
@@ -331,12 +346,15 @@ def show_preview(p):
                      "existed, filled from the outcome notes written after each decision. Use it to size the change, "
                      "not as evidence the rule works today.")  # fmt: skip
         box.markdown(f"**{ds.name}** · {ds.total} requests")
-        c = box.columns(4)
-        c[0].metric("Auto-approved", ds.auto_after, ds.auto_after - ds.auto_before)
-        c[1].metric("$ auto-approved", money(ds.usd_auto_after), f"{ds.usd_auto_after - ds.usd_auto_before:+,.2f}")
+        usd = lambda v: f"${v:,.0f}"
+        c = box.columns(2)
+        dn, du = ds.auto_after - ds.auto_before, ds.usd_auto_after - ds.usd_auto_before
+        c[0].metric("Auto-approved", ds.auto_after, f"{dn:+d} vs live" if dn else None, delta_color="off")
+        c[1].metric("$ auto-approved", usd(ds.usd_auto_after), f"{du:+,.0f} vs live" if round(du) else None, delta_color="off")
         if "History" in ds.name:
-            c[2].metric("Newly auto that went wrong before", len(ds.newly_auto_bad), delta_color="off")
-            c[3].metric("Reviewer minutes saved", f"{ds.minutes_saved:.0f}")
+            c = box.columns(2)
+            c[0].metric("Newly auto, went wrong before", len(ds.newly_auto_bad))
+            c[1].metric("Reviewer minutes saved", f"{ds.minutes_saved:.0f}")
         if ds.changes:
             box.dataframe(pd.DataFrame([{
                 "request": ch.request_id, "amount": money(ch.amount_usd),
@@ -401,7 +419,7 @@ def add_rule_forms(d: dict):
                     from refunds.rule_nl import describe
 
                     st.success("**Draft:** " + describe(Rule.model_validate(rule)))
-                    st.code(yaml.safe_dump(rule, sort_keys=False), language="yaml")
+                    st.code(yaml.safe_dump(rule, sort_keys=False), language="yaml", wrap_lines=True)
                     if st.button("Add this draft to my changes", type="primary"):
                         add_rule(d, rule)
                 except Exception as e:
@@ -474,7 +492,7 @@ def policy_page():
         st.session_state.pop("preview", None)
         st.rerun()
 
-    left, right = st.columns([1, 1])
+    left, right = st.columns([2, 3])
     with left:
         st.subheader("1 · Edit the rules")
         rule_editor(d)
