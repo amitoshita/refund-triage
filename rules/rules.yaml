@@ -1,0 +1,129 @@
+# Refund policy as data. Edited from the Policy page; every publish becomes a new version.
+# Order matters for one thing only: the first block rule that fires picks the queue lane.
+# All firing block rules are shown to the reviewer as reasons.
+version: 1
+created_at: 2026-11-17T00:00:00Z
+author: system (seed from backtest, PLAN.md §2)
+change_note: Initial line. Auto-approve low-risk returns up to $75; everything else to a person.
+
+rules:
+  # ---- What can be auto-approved -------------------------------------------------
+  - id: low_risk_returns
+    kind: eligible
+    description: Low-risk return reasons can be approved automatically when no block rule applies.
+    when:
+      all:
+        - {field: reason, op: in, value: [wrong_size, changed_mind, wrong_item, arrived_damaged]}
+
+  # ---- Send to a person ----------------------------------------------------------
+  - id: fraud_flag
+    kind: block
+    description: Payment-provider fraud flag is set, or missing.
+    policy_ref: 5
+    lane: fraud
+    reason: "Fraud flag is '{fraud_flag}'. Fraud team must confirm before any refund."
+    when:
+      all:
+        - {field: fraud_flag, op: in, value: ["yes", unknown]}
+
+  - id: bad_data
+    kind: block
+    locked: true
+    description: Required data is missing or malformed.
+    lane: data
+    reason: "Data problem: {data_issues}. Fix or verify before deciding."
+    when:
+      all:
+        - {field: data_issues, op: not_empty}
+
+  - id: duplicate_request
+    kind: block
+    locked: true
+    description: The same request ID was submitted more than once.
+    lane: data
+    reason: "Request ID already seen: possible resubmission or double claim. Check both versions."
+    when:
+      all:
+        - {field: is_duplicate, op: eq, value: true}
+
+  - id: note_warning_signs
+    kind: block
+    locked: true
+    description: The notes contain a warning sign (read by the LLM, or by keyword fallback without an API key).
+    lane: notes
+    reason: "Warning signs in the notes: {note_flags}."
+    when:
+      all:
+        - {field: note_flags, op: not_empty}
+
+  - id: amount_cap
+    kind: block
+    description: Refunds above the auto-approve limit go to a person.
+    lane: policy
+    reason: "Amount ${amount_usd} is over the $75 auto-approve limit."
+    when:
+      all:
+        - {field: amount_usd, op: gt, value: 75}
+
+  - id: repeat_refunder
+    kind: block
+    description: Customer already had a refund in the last 12 months.
+    lane: policy
+    reason: "Customer had {prior_refunds_12m} refund(s) in the last 12 months."
+    when:
+      all:
+        - {field: prior_refunds_12m, op: gte, value: 1}
+
+  - id: return_window
+    kind: block
+    description: Change of mind or wrong size outside the 14-day return window. (Assumption, wrong size follows the change-of-mind window.)
+    policy_ref: 2
+    lane: policy
+    reason: "Requested {days_since_delivery} days after delivery; return window is 14 days."
+    when:
+      all:
+        - {field: reason, op: in, value: [changed_mind, wrong_size]}
+        - {field: days_since_delivery, op: gt, value: 14}
+
+  - id: photo_required
+    kind: block
+    description: Damage claims over $50 need a photo.
+    policy_ref: 3
+    lane: policy
+    reason: "Damage claim of ${amount_usd} with no photo confirmed in the notes."
+    when:
+      all:
+        - {field: reason, op: eq, value: arrived_damaged}
+        - {field: amount_usd, op: gt, value: 50}
+        - {field: has_photo_evidence, op: eq, value: false}
+
+  - id: electronics_damage
+    kind: block
+    description: Damaged electronics need a person (cosmetic damage gets partials; one auto-approval became a chargeback).
+    policy_ref: 6
+    lane: partial
+    reason: "Damaged electronics: reviewer decides full or partial refund."
+    when:
+      all:
+        - {field: reason, op: eq, value: arrived_damaged}
+        - {field: category, op: eq, value: electronics}
+
+  - id: never_arrived_check
+    kind: block
+    description: Non-delivery claims need a carrier check (signature, delivery photo, depot backlog).
+    policy_ref: 4
+    lane: carrier
+    reason: "Never-arrived claim: check carrier proof of delivery before refunding."
+    when:
+      all:
+        - {field: reason, op: eq, value: never_arrived}
+
+  - id: late_delivery_partial
+    kind: block
+    description: Late deliveries are the reviewer's call (often shipping-only refund).
+    policy_ref: 6
+    lane: partial
+    reason: "Late delivery: reviewer decides full, partial, or shipping-only refund."
+    when:
+      all:
+        - {field: reason, op: eq, value: late_delivery}
