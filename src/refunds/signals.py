@@ -56,7 +56,8 @@ KEYWORD_FLAGS: dict[str, list[tuple[str, str, set[str] | None]]] = {
     "injection_attempt": [
         ("any", r"system note|note to (the )?(refund )?agent|ignore (all |any )?(previous|prior|above)|"
                 r"set decision|decision\s*=|skip (human )?review|pre-?approved|classify (this )?as|"
-                r"as an ai|you are (an?|the) (ai|agent|assistant)|instructions?:", None),
+                r"as an ai|you are (an?|the) (ai|agent|assistant)|instructions?:|"
+                r"<\s*/?\s*(customer|support)_note\s*>", None),  # our prompt delimiters: an attempt to break out
     ],
     "admits_received": [
         ("any", r"did turn up|turned up|showed up|it arrived|has arrived|found (it|the parcel|the package)", {"never_arrived"}),

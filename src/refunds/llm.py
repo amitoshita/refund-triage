@@ -13,6 +13,7 @@ Safety design:
 import hashlib
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -112,11 +113,22 @@ def list_models() -> dict[str, dict]:
     return out
 
 
+# Our delimiter tags, in any case/spacing, e.g. "</customer_note>" or "< / SUPPORT_NOTE >".
+NOTE_TAG = re.compile(r"<\s*(/?)\s*(customer_note|support_note)\s*>", re.I)
+
+
+def escape_note(text: str) -> str:
+    """Neutralise our delimiter tags inside a note so it can't close its block and pose as another one.
+    Escaped rather than stripped, so the attempt stays visible to the reader as a warning sign."""
+    return NOTE_TAG.sub(lambda m: f"&lt;{m.group(1)}{m.group(2)}&gt;", text)
+
+
 def user_message(case: Case) -> str:
+    # Notes without these tags produce exactly the same message as before, so cached results stay valid.
     return (
         f"Stated reason: {case.reason or case.raw.get('stated_reason')}\n"
-        f"<customer_note>\n{case.customer_note}\n</customer_note>\n"
-        f"<support_note>\n{case.support_note}\n</support_note>"
+        f"<customer_note>\n{escape_note(case.customer_note)}\n</customer_note>\n"
+        f"<support_note>\n{escape_note(case.support_note)}\n</support_note>"
     )
 
 
