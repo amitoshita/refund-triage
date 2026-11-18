@@ -13,7 +13,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 and the dependen
 ```bash
 uv run refunds run data/pending.csv          # decide a file -> prints routing, writes out/decisions.csv
 uv run streamlit run app/streamlit_app.py    # clickable demo at http://localhost:8501
-uv run pytest                                # 172 tests
+uv run pytest                                # 177 tests
 ```
 
 `refunds run` accepts any CSV with the same columns as `pending.csv`. The demo can load one too (sidebar, "Requests file").
