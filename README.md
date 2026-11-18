@@ -38,9 +38,9 @@ Other commands: `refunds models` (checks which configured models the key can use
 **Deciding a request**
 
 ```mermaid
-flowchart LR
+flowchart TD
     csv[CSV] --> ingest["Ingest +<br/>normalise"]
-    ingest --> signals["Signals<br/>keywords + LLM"]
+    ingest --> signals["Signals<br/>keyword scan + LLM"]
     signals --> engine{"Rule engine<br/>rules.yaml +<br/>guardrails"}
     engine -->|eligible| auto["Auto-approve<br/>(logged)"]
     engine -->|blocked| queue["Reviewer queue<br/>(lanes)"]
