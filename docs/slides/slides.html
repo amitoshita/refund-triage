@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Refund triage write-up</title>
+<!-- Source for docs/slides.pdf. Build: uv run python docs/slides/build_pdf.py (needs Playwright + Chromium).
+     Every number comes from the code: `refunds backtest`, `refunds eval-notes`, the Policy manager preview.
+     Speaker notes: docs/SPEAKER_NOTES.md -->
+<style>
+  :root {
+    --ink: #1d232b; --muted: #5b6573; --line: #dde2e8; --bg: #ffffff; --soft: #f4f6f8;
+    --accent: #b3263b; --good: #1f7a4d; --goodbg: #e8f4ee; --bad: #b3263b; --badbg: #fbeaec; --info: #2556a8; --infobg: #eaf0fa;
+  }
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #888; color: var(--ink);
+    font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  .slide { width: 1280px; height: 720px; background: var(--bg); position: relative; overflow: hidden;
+    padding: 56px 72px 48px; margin: 24px auto; page-break-after: always; break-after: page; display: flex; flex-direction: column; }
+  @media print { html, body { background: #fff; } .slide { margin: 0; } }
+  .kicker { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 10px; }
+  h1 { font-size: 36px; line-height: 1.18; margin: 0 0 28px; font-weight: 700; letter-spacing: -.01em; max-width: 1100px; }
+  .body { flex: 1; display: flex; gap: 48px; min-height: 0; }
+  .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .col.narrow { flex: 0 0 420px; }
+  ul { margin: 0; padding-left: 22px; }
+  li { font-size: 19px; line-height: 1.38; margin-bottom: 12px; }
+  li b { color: var(--ink); }
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 22px; display: flex; justify-content: space-between;
+    font-size: 12px; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 18px; }
+  th { text-align: left; font-weight: 600; color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .04em;
+    border-bottom: 2px solid var(--line); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--line); padding: 11px 10px; vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.hl td { background: var(--goodbg); font-weight: 700; }
+  .note { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.4; }
+  .shot { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.08); background: #fff; }
+  .shot img { display: block; }
+  .big { font-size: 64px; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+
+  /* slide 1 flow */
+  .flow { display: flex; align-items: stretch; gap: 10px; margin-bottom: 8px; }
+  .row-label { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 8px; }
+  .box { border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 15px; line-height: 1.3; background: var(--soft); flex: 1; }
+  .box b { display: block; font-size: 15.5px; margin-bottom: 3px; }
+  .box.ext { background: #fff; border-style: dashed; }
+  .box.bad { background: var(--badbg); border-color: #efc3c9; }
+  .box.good { background: var(--goodbg); border-color: #bfe0cd; }
+  .arrow { align-self: center; color: var(--muted); font-size: 20px; flex: 0 0 auto; }
+
+  /* slide 2 bars */
+  .bars { margin-top: 6px; }
+  .bar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; font-size: 17px; }
+  .bar .lbl { width: 170px; color: var(--muted); }
+  .bar .fill { height: 34px; border-radius: 4px; display: flex; align-items: center; padding-left: 10px; color: #fff; font-weight: 700; font-size: 16px; }
+</style>
+</head>
+<body>
+
+<!-- 1 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">1 · The process today, and after</div>
+  <h1>Today a refund can pass through eight parties, and the person who owns the policy needs IT to change the auto-rule.</h1>
+  <div class="row-label">Before</div>
+  <div class="flow">
+    <div class="box ext"><b>Customer</b>web form (RF-1xxx) or support desk (RF-2xxx)</div><div class="arrow">→</div>
+    <div class="box"><b>Support agent</b>writes notes, checks photos</div><div class="arrow">→</div>
+    <div class="box ext"><b>Payment provider</b>fraud flag (often blank)</div><div class="arrow">→</div>
+    <div class="box bad"><b>IT's auto-rule</b>"small stuff from good customers": 45%, nobody remembers the exact rule</div><div class="arrow">→</div>
+    <div class="box bad"><b>4 reviewers, one queue</b>137 decisions in 11 weeks, 1,119 logged minutes</div><div class="arrow">→</div>
+    <div class="box ext"><b>Fraud team · Carrier</b>stolen-card checks · proof of delivery</div>
+  </div>
+  <div class="note" style="margin:0 0 18px">Refund Ops Manager owns the policy (7 notes, in her words) but can't change the rule without IT.</div>
+  <div class="row-label">After</div>
+  <div class="flow">
+    <div class="box"><b>Ingest + data checks</b>messy values fixed or flagged</div><div class="arrow">→</div>
+    <div class="box"><b>Note reader</b>keyword scan + LLM; can only add warning flags</div><div class="arrow">→</div>
+    <div class="box good"><b>Rules (versioned data)</b>auto-approve 43%, logged and audited</div><div class="arrow">→</div>
+    <div class="box good"><b>Queue in 6 lanes</b>fraud team · data fix · warning signs · carrier · partial · policy</div><div class="arrow">→</div>
+    <div class="box good"><b>Manager</b>edits rules, previews impact, publishes, rolls back</div>
+  </div>
+  <div class="foot"><span>Sample: history.csv, 248 decided requests over ≈11 weeks (Jun 1 – Aug 18 2026) · pending.csv, 21 requests</span><span>1 / 8</span></div>
+</section>
+
+<!-- 2 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">2 · Where it breaks</div>
+  <h1>Most money is lost in the queue, not in the auto-rule: 7 of the 8 chargebacks were approved by a person.</h1>
+  <div class="body">
+    <div class="col narrow">
+      <div class="note" style="margin:0 0 10px;font-size:15px">Chargeback cost (order + $25 fee), 11 weeks</div>
+      <div class="bars">
+        <div class="bar"><span class="lbl">Approved by a reviewer</span><div class="fill" style="width:220px;background:var(--bad)">$2,445 · 7</div></div>
+        <div class="bar"><span class="lbl">Approved by the auto-rule</span><div class="fill" style="width:24px;background:#d98b97"></div><span>$74 · 1</span></div>
+      </div>
+      <div style="margin-top:26px">
+        <div class="big">$2,519</div>
+        <div class="note" style="font-size:16px">in chargebacks, plus processing risk (policy #7)</div>
+      </div>
+    </div>
+    <div class="col">
+      <ul>
+        <li>All 7 had a <b>warning sign already in the notes</b> or the fraud flag: "signature on file", "packaging sealed", "she said it did turn up".</li>
+        <li><b>Same policy, different answers:</b> late change of mind ("no exceptions") was approved 4 of 4 times by one reviewer and rejected 5 of 5 by two others.</li>
+        <li><b>15 damage claims over $50 approved with no photo</b> ($2,521), against policy #3.</li>
+        <li><b>Messy data:</b> "USD 120.00", DD/MM dates, 11 spellings of the reason, blank fraud flags, a fake "system note" in a customer note.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>History is not ground truth: "went wrong" combines outcomes (chargebacks, appeals) with the written policy.</span><span>2 / 8</span></div>
+</section>
+
+<!-- 3 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">3 · The line</div>
+  <h1>The system can approve 43% of requests on its own: the same share as today's rule, with none of its mistakes.</h1>
+  <div class="body">
+    <div class="col">
+      <table>
+        <tr><th>Backtest · 248 decided requests</th><th class="num">Auto-approved</th><th class="num">$</th><th class="num">Went wrong before</th></tr>
+        <tr><td>Today's rule (actual)</td><td class="num">111</td><td class="num">$3,377</td><td class="num">4</td></tr>
+        <tr><td>New rules, without reading notes</td><td class="num">111</td><td class="num">$3,606</td><td class="num">3</td></tr>
+        <tr class="hl"><td>New rules + note reader</td><td class="num">106 (43%)</td><td class="num">$3,346</td><td class="num">0</td></tr>
+      </table>
+      <div class="note">Pending: 2 of 21 auto-approved (RF-1069 $25, RF-1071 $67), 19 to a person, each with a lane and every reason.<br>
+        0 of 106 still allows up to ≈2.8% errors (rule of three), and auto-approved history was never reviewed: launch in shadow mode.</div>
+    </div>
+    <div class="col">
+      <ul>
+        <li><b>Auto-approve only:</b> wrong size / change of mind within 14 days, wrong item, damaged (not electronics, photo if over $50), up to <b>$75</b>, no refunds in 12 months, fraud flag "no", clean data, no warning signs.</li>
+        <li><b>Why $75, not $100:</b> $100 adds only 2 cases (+$173) and saves 18 reviewer minutes in 11 weeks, about 2 a week. Not worth the extra risk.</li>
+        <li><b>Faster refunds:</b> auto-approvals are paid in seconds; reviewed requests took a median of ≈1.7 days.</li>
+        <li><b>Reviewer time:</b> ≈1.3 hours a week at this volume (22 requests/week), ≈58 hours per 1,000 requests. About flat vs today's rule: the gain is the 4 bad approvals it stops.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>"Went wrong": chargebacks, correct rejections, partials, policy violations. Guardrails above all rules: $500 max per auto-approval, kill switch.</span><span>3 / 8</span></div>
+</section>
+
+<!-- 4 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">4 · Reviewer queue</div>
+  <h1>Reviewers see why a case came to them, the warning signs and the policy step on one card, and still make the call.</h1>
+  <div class="body">
+    <div class="col narrow">
+      <ul>
+        <li><b>6 lanes</b> with counts, so the fraud team, carrier checks and data fixes each get their own pile.</li>
+        <li><b>Every reason</b> it wasn't auto-approved, with the policy number, plus <b>warning signs with evidence</b>: where 7 of 8 chargebacks came from.</li>
+        <li><b>Suggestion, not a default:</b> the decision starts empty to avoid automation bias. Going against the suggestion needs a note.</li>
+        <li>Every action is logged with the rule version, so <b>override rates per rule</b> reach the manager.</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="shot" style="width:100%;height:480px">
+        <img src="../screenshots/02_case_RF-1073_injection.png" alt="Reviewer case card for RF-1073"
+             style="width:147%;margin-left:-38.8%;margin-top:-99.5%">
+      </div>
+      <div class="note">RF-1073: a fake "system note" asks to approve and skip review. It is flagged and treated as a fraud signal (suggest: escalate), and the claim is still checked on the facts (policy #4).</div>
+    </div>
+  </div>
+  <div class="foot"><span>Mocked: "request info" and "escalate" record the action but send no message.</span><span>4 / 8</span></div>
+</section>
+
+<!-- 5 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">5 · Policy manager</div>
+  <h1>The manager changes a rule herself and sees its effect on 11 weeks of history and today's queue before it goes live.</h1>
+  <div class="body">
+    <div class="col">
+      <ul>
+        <li><b>Three ways to change a rule:</b> edit a number, build it in a form, or describe it in English and confirm the AI's draft.</li>
+        <li><b>"Raise the limit to $100":</b> +2 auto-approved, 0 went wrong before, ≈2 reviewer minutes a week.</li>
+        <li><b>"Anything over $300 comes to us":</b> 0 changes. The $75 limit already covers it.</li>
+        <li><b>"Stolen cards go straight through":</b> RF-2182 moves to auto today. A labelled proxy on history: 8 cases (+$2,215), 0 went wrong; 2 over $500 stay with a person.</li>
+      </ul>
+      <div class="note" style="margin-top:auto">Publishing needs a reason; every version is kept; rollback is previewed too. Locked safety rules can't be switched off.</div>
+    </div>
+    <div class="col narrow" style="flex-basis:470px">
+      <div class="shot" style="width:100%;height:540px">
+        <img src="../screenshots/06_policy_cap_100_preview.png" alt="Preview of raising the limit to $100"
+             style="width:240%;margin-left:-129.4%;margin-top:-52%">
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Proxy: history has no structured "fraud team confirmed" field, so the preview fills it from outcome notes and labels the view as such.</span><span>5 / 8</span></div>
+</section>
+
+<!-- 6 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">6 · Measuring success</div>
+  <h1>Two weeks of shadow mode first, then a few numbers tell us within a week if the line is wrong, and rollback is one click.</h1>
+  <div class="body">
+    <div class="col" style="flex:1.6">
+      <table>
+        <tr><th>Watch</th><th>Good</th><th>Roll back or tighten</th></tr>
+        <tr><td>Audit sample of auto-approvals (100% in week 1, then 10%)</td><td>&lt; 2% errors</td><td>any clear policy violation, or &gt; 3%</td></tr>
+        <tr><td>Chargebacks on auto-approved refunds</td><td>≈ 0</td><td>any: suspend the rule that approved it</td></tr>
+        <tr><td>Auto-approved share</td><td>35–50%</td><td>jump of &gt; 15 points (rule or data drift)</td></tr>
+        <tr><td>Reviewer overrides, per rule</td><td>informative</td><td>overridden ≈100%: candidate to relax</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <ul>
+        <li><b>Shadow mode:</b> the system decides, people still decide. Go live if no auto-approval was rejected by a reviewer for a policy reason, and the share is ≥ 30%.</li>
+        <li><b>Rollback:</b> republish the previous rule version (previewed), or flip the kill switch.</li>
+        <li>Also watch <b>queue age</b> (&lt; 1 business day).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Every decision is logged with the rule version that made it.</span><span>6 / 8</span></div>
+</section>
+
+<!-- 7 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">7 · Where AI is used, and where it isn't</div>
+  <h1>AI reads the notes; plain rules make the money decision, for about $0.0002 per request.</h1>
+  <div class="body">
+    <div class="col" style="flex:1.3">
+      <table>
+        <tr><th>Warning-sign recall</th><th>Dev set<br>41 warning / 27 harmless</th><th>Held-out<br>12 / 7, labelled first</th></tr>
+        <tr><td>Keyword scan alone</td><td>36/41 · 4 false flags</td><td>10/12 · 7/7 false flags</td></tr>
+        <tr class="hl"><td>Haiku 5.5 (chosen)</td><td>41/41 · 0 false flags</td><td>12/12 · 0 false flags</td></tr>
+        <tr><td>Sonnet 5.5</td><td>40/41 · missed a chargeback note</td><td>not run</td></tr>
+      </table>
+      <div class="note">Small sets, labels written by me, prompt tuned on the dev set. One known false flag (RF-2007), in the safe direction.</div>
+    </div>
+    <div class="col">
+      <ul>
+        <li><b>AI:</b> notes → warning flags (any language), the manager's English → a draft rule, a one-line summary for the reviewer.</li>
+        <li><b>No AI:</b> approving or routing, amounts, dates, reasons. Anything that moves money.</li>
+        <li><b>Cost per decision:</b> one Haiku 5.5 call reads both notes: ≈$0.0002, or ≈$0.20 per 1,000 requests. Sonnet cost ≈20× more.</li>
+        <li><b>Safe by design:</b> strict JSON with no "approve" option; it can only add flags; the keyword scan always runs; any failure sends the case to a person.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Model is a config value. Total API spend while building and evaluating: ≈$0.90.</span><span>7 / 8</span></div>
+</section>
+
+<!-- 8 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="kicker">8 · Deferred, and next</div>
+  <h1>Next: run it in shadow mode, and turn what staff write in notes into fields the rules can trust.</h1>
+  <div class="body">
+    <div class="col">
+      <div class="row-label">Deferred</div>
+      <ul>
+        <li>Auth and roles; real messages for "request info" and "escalate".</li>
+        <li>An audit screen; partial-amount suggestions.</li>
+        <li>Customer history across channels; scheduled rule changes.</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="row-label">Next</div>
+      <ul>
+        <li><b>Shadow mode for 2 weeks</b>; reviewers label notes as they go → a real eval set.</li>
+        <li><b>Structured fields</b> for photo evidence and fraud-team confirmation (today read from staff notes).</li>
+        <li><b>Agree policy #2</b> with the manager (reviewers disagree) and the wrong-size assumption.</li>
+        <li><b>Carrier incidents:</b> hold and recheck delivery (6 open Northfield cases) instead of refunding first.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Code, tests, demo and details: README.md · PLAN.md · eval/RESULTS.md</span><span>8 / 8</span></div>
+</section>
+
+</body>
+</html>

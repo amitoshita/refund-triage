@@ -73,6 +73,8 @@ Other commands: `refunds models` (checks which configured models the key can use
 | `app/` | Streamlit demo |
 | `eval/` | labelled note sets and results (`eval/RESULTS.md`) |
 | `docs/screenshots/` | screenshots of the demo |
+| `docs/slides.pdf` | the 8-slide write-up (source: `docs/slides/slides.html`; notes: `docs/SPEAKER_NOTES.md`) |
+| `docs/RECORDING_SCRIPT.md` | script for the screen recording |
 
 ## The line (rules v1)
 
