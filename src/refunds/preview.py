@@ -137,14 +137,15 @@ def warnings_for(current: RuleSet, draft: RuleSet) -> list[str]:
             src = FIELDS[c.field][1]
             if src is Source.DERIVED and c.field == "fraud_team_confirmed_stolen":
                 out.append(
-                    f"'{r.id}' depends on 'fraud team confirmed stolen', which is not a structured field: it is read "
+                    f"'{r.label}' depends on 'fraud team confirmed stolen', which is not a structured field: it is read "
                     "from the support agent's note with a strict phrase match. History has no such notes, so the "
                     "history preview is also shown with a labelled proxy (outcome notes)."
                 )
             elif src is Source.LLM and r.kind == "eligible":
-                out.append(f"'{r.id}' uses LLM-extracted '{c.field}' to approve; LLM output should only block.")
+                out.append(f"'{r.label}' uses LLM-extracted '{c.field}' to approve; LLM output should only block.")
         if r.kind == "eligible" and r.overrides:
-            out.append(f"'{r.id}' lets through cases normally blocked by: {', '.join(r.overrides)}.")
+            names = [cur_ids[o].label if o in cur_ids else o for o in r.overrides]
+            out.append(f"'{r.label}' lets through cases normally blocked by: {', '.join(names)}.")
     return out
 
 

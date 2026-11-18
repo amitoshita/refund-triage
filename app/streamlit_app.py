@@ -334,7 +334,7 @@ def show_preview(p):
             c[0].metric("Newly auto, went wrong before", len(ds.newly_auto_bad))
             weeks = p.history_weeks
             per_week = f"≈ {ds.minutes_saved / weeks:.0f} min / week" if weeks and ds.minutes_saved else None
-            c[1].metric(f"Reviewer minutes saved (over ≈{weeks:.0f} weeks of history)" if weeks else "Reviewer minutes saved",
+            c[1].metric(f"Reviewer minutes saved (≈{weeks:.0f} wks)" if weeks else "Reviewer minutes saved",
                         f"{ds.minutes_saved:.0f}", per_week, delta_color="off", delta_arrow="off")  # fmt: skip
         if ds.changes:
             box.dataframe(pd.DataFrame([{
