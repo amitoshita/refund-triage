@@ -22,6 +22,7 @@ from refunds.ingest import load_cases
 from refunds.preview import run_preview
 from refunds.rules import Lane, Rule, RuleSet, dump_ruleset, load_ruleset
 from refunds.signals import apply_signals
+from refunds.suggest import ACTIONS, suggest
 from refunds.versions import ensure_seeded, list_versions, publish, rollback
 
 DEMO = ROOT / "out" / "demo"
@@ -32,32 +33,6 @@ LANE_LABELS = {
     "fraud": "Fraud team", "data": "Data fix", "notes": "Warning signs in notes",
     "carrier": "Carrier check", "partial": "Full or partial?", "policy": "Policy check",
 }  # fmt: skip
-
-SUGGEST = {  # rule id -> (suggested action, plain-English guidance)
-    "fraud_flag": ("escalate", "Policy #5: send to the fraud team. Refund the real cardholder only if they confirm the card was stolen."),
-    "bad_data": (None, "Fix or verify the data first."),
-    "duplicate_request": (None, "Compare with the other submission and decide once (approve the right amount, reject the copy)."),
-    "return_window": ("reject", "Policy #2: outside the 14-day window. No exceptions."),
-    "photo_required": ("request_info", "Policy #3: ask for a photo before refunding."),
-    "never_arrived_check": (None, "Policy #4: if the carrier has a signature or delivery photo, reject unless the carrier opens an investigation."),
-    "late_delivery_partial": ("approve_partial", "Policy #6: reviewer's call. Shipping-only refunds are common here."),
-    "electronics_damage": ("approve_partial", "Cosmetic damage usually gets a partial refund; full refund if it doesn't work."),
-    "repeat_refunder": (None, "Check this customer's earlier refunds before deciding."),
-    "amount_cap": (None, "Over the auto-approve limit: check the claim, approve if valid."),
-    "global_max": (None, "Over the system-wide maximum for automatic approval."),
-}  # fmt: skip
-FLAG_SUGGEST = {
-    "injection_attempt": ("reject", "The note tries to instruct the system. Ignore it and decide on the facts."),
-    "signature_on_file": ("reject", "Policy #4: signature/delivery proof on file. Reject unless the carrier opens an investigation."),
-    "already_refunded": ("reject", "Customer says they were already refunded elsewhere. Check before paying again."),
-    "admits_received": ("reject", "The parcel arrived, by the customer's own account."),
-    "contradicts_claim": ("reject", "Staff evidence contradicts the claim."),
-    "reason_mismatch": ("reject", "The note doesn't match the selected reason. Treat as the real reason (e.g. change of mind + window)."),
-    "carrier_incident": ("request_info", "Parcel may still be delivered. Ask the carrier for a trace before refunding."),
-    "refund_redirect": ("escalate", "Asks to refund a different card/account. Refund only to the original payment method."),
-}  # fmt: skip
-ACTIONS = {"approve_full": "Approve full", "approve_partial": "Approve partial", "reject": "Reject",
-           "request_info": "Request info", "escalate": "Escalate"}  # fmt: skip
 
 
 # ---------------------------------------------------------------- state & data
@@ -150,16 +125,6 @@ def similar_history(c, n=5):
     } for h in sims[:n]])  # fmt: skip
 
 
-def suggestion(c, d):
-    for flag in sorted(c.note_flags, key=lambda f: list(FLAG_SUGGEST).index(f) if f in FLAG_SUGGEST else 99):
-        if flag in FLAG_SUGGEST:
-            return FLAG_SUGGEST[flag]
-    for r in d.reasons:
-        if r.rule_id in SUGGEST:
-            return SUGGEST[r.rule_id]
-    return (None, "No specific guidance: decide on the facts.")
-
-
 def case_card(c, d, latest):
     st.subheader(f"{c.request_id} · {money(c.amount_usd)} · {(c.reason or c.raw['stated_reason']).replace('_', ' ')}")
     facts = [
@@ -187,6 +152,8 @@ def case_card(c, d, latest):
         if c.note_flags:
             st.error("**Warning signs in the notes**\n\n" + "\n".join(
                 f"- **{f.replace('_', ' ')}**: {c.note_flag_evidence.get(f, '')}" for f in sorted(c.note_flags)))  # fmt: skip
+            st.caption("Two layers check every note: a keyword scan always runs, and the AI reader adds flags on top. "
+                       "Neither can remove a flag. Evidence is labelled with its source.")  # fmt: skip
         summary = reader().summaries.get(c.request_id)
         if summary:
             st.info(f"**AI summary (verify against the notes):** {summary}")
@@ -200,7 +167,7 @@ def case_card(c, d, latest):
             st.caption(f"Raw values as submitted: {messy}")
 
     with right:
-        action, guidance = suggestion(c, d)
+        action, guidance = suggest(c, d)
         st.markdown("**Suggested by policy**")
         st.success(guidance + (f"\n\nSuggested action: **{ACTIONS[action]}**" if action else ""))
         if latest:
@@ -208,8 +175,8 @@ def case_card(c, d, latest):
                        + (f" ({latest['detail']})" if latest['detail'] else ""))  # fmt: skip
 
         with st.form(f"decide_{c.request_id}_{id(c)}"):
-            choice = st.radio("Decision", list(ACTIONS), format_func=ACTIONS.get, horizontal=True,
-                              index=list(ACTIONS).index(action) if action else 0)  # fmt: skip
+            # Not preselected, so the reviewer makes an active choice (avoids rubber-stamping the suggestion).
+            choice = st.radio("Decision", list(ACTIONS), format_func=ACTIONS.get, horizontal=True, index=None)
             amount = st.number_input("Refund amount ($), for approve / partial", min_value=0.0,
                                      value=float(c.amount_usd or 0), step=1.0)  # fmt: skip
             detail = st.text_input("Reject reason / info requested / escalate to",
@@ -217,7 +184,9 @@ def case_card(c, d, latest):
             note = st.text_area("Note (required if you go against the suggestion or warning signs)", height=70)
             if st.form_submit_button("Submit decision", type="primary"):
                 against = (action and choice != action) or (c.note_flags and choice == "approve_full")
-                if against and not note.strip():
+                if choice is None:
+                    st.error("Please pick a decision.")
+                elif against and not note.strip():
                     st.error("Please add a note: you're going against the suggestion or the warning signs.")
                 elif choice == "approve_partial" and not (0 < amount < (c.amount_usd or 0)):
                     st.error("A partial refund must be more than $0 and less than the requested amount.")
@@ -235,6 +204,13 @@ def case_card(c, d, latest):
         st.caption("None found.")
     else:
         st.dataframe(sims, hide_index=True, width="stretch")
+
+
+def first_reason(rule_ids: list[str]) -> str:
+    """Queue cell: short name of the first rule only; the case card lists every reason in full."""
+    if not rule_ids:
+        return "-"
+    return rule_ids[0].replace("_", " ") + (f" (+{len(rule_ids) - 1} more)" if len(rule_ids) > 1 else "")
 
 
 def reviewer_page():
@@ -273,14 +249,16 @@ def reviewer_page():
             "request": c.request_id, "amount": c.amount_usd, "reason": (c.reason or "?").replace("_", " "),
             "status": status(c), "lane": LANE_LABELS.get(str(d.lane)),
             "warning signs": ", ".join(f.replace("_", " ") for f in sorted(c.note_flags)) or "-",
-            "other reasons": " · ".join(r.text for r in d.reasons if r.rule_id != "note_warning_signs") or "-",
+            "other reasons": first_reason([r.rule_id for r in d.reasons if r.rule_id != "note_warning_signs"]),
         } for c, d in shown]  # fmt: skip
         sel = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", on_select="rerun",
                            selection_mode="single-row", column_config={
                                "amount": st.column_config.NumberColumn(format="$%.2f", width="small"),
                                "request": st.column_config.TextColumn(width="small"),
                                "status": st.column_config.TextColumn(width="small"),
-                               "other reasons": st.column_config.TextColumn(width="large")})  # fmt: skip
+                               "warning signs": st.column_config.TextColumn(width="medium"),
+                               "other reasons": st.column_config.TextColumn(
+                                   help="First rule that sent it here; open the case for every reason in full.")})  # fmt: skip
         idx = sel.selection.rows[0] if sel.selection.rows else 0
         st.caption("Click a row to open it.")
         st.divider()
@@ -371,7 +349,7 @@ def rule_editor(d: dict):
     gen = st.session_state.gen
     for r in d["rules"]:
         rule = Rule.model_validate(r)
-        icon = "🔒" if rule.locked else ("✅" if rule.kind == "eligible" else "🧑")
+        icon = "🔒" if rule.locked else ("✅" if rule.kind == "eligible" else "⛔")
         state = "" if r.get("enabled", True) else " (off)"
         with st.expander(f"{icon} {rule.description}{state}"):
             st.caption(f"id: {rule.id} · {rule.kind}" + (f" · policy #{rule.policy_ref}" if rule.policy_ref else ""))

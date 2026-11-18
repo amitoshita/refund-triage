@@ -124,12 +124,13 @@ def apply_signals(case: Case, reader: NoteReader | None = None) -> Case:
     case.has_photo_evidence = photo_evidence(case.support_note)
     case.fraud_team_confirmed_stolen = fraud_team_confirmed_stolen(case.support_note)
 
-    # Keyword scan always runs; the LLM can add flags on top, never remove them.
+    # Two layers: the keyword scan always runs; the LLM can add flags on top, never remove them.
+    # When both find the same flag, the reviewer sees both pieces of evidence.
     flags = keyword_flags(case)
     if reader is not None:
         try:
             for flag, why in reader(case).items():
-                flags.setdefault(flag, why)
+                flags[flag] = f"{flags[flag]}; {why}" if flag in flags else why
         except Exception as e:  # any LLM failure -> a person reads it
             flags.setdefault("unreadable", f"note reader failed: {type(e).__name__}: {str(e)[:80]}")
     elif case.customer_note and not customer_note_cleared(case.customer_note):

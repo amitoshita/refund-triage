@@ -21,7 +21,11 @@ click **Reset demo state** in the sidebar, window ~1440 wide. Terminal open in t
 - Scroll slowly: reasons → red warning box → customer note.
 - Say: "This customer note contains a fake system message telling the agent to approve and skip review. Notes are
   untrusted data: the LLM can only add warning flags, never approve, so it lands here flagged as an injection attempt.
-  The card shows every reason it wasn't auto-approved, with the policy number, and what policy suggests."
+  The card shows every reason it wasn't auto-approved, with the policy number."
+- Point at the green box: "The injection isn't a reason to reject. It's a fraud signal, so policy suggests escalating,
+  and the claim itself still gets checked on the facts: carrier proof of delivery, policy #4."
+- Point at the empty Decision radio: "Nothing is preselected. The reviewer has to choose, so they don't just confirm
+  what the system suggests."
 - Point at **Similar past requests**: "And how similar requests went, including one that ended in a chargeback."
 
 **1:40 – 2:10 · Case card: RF-1074 (Spanish) and a decision**
@@ -29,7 +33,7 @@ click **Reset demo state** in the sidebar, window ~1440 wide. Terminal open in t
 - Say: "This one is in Spanish: the customer says the store already refunded them. Most chargebacks in the history
   were human approvals where the warning sign was in the notes. So the warning signs are on the card, not just used
   for routing."
-- Leave **Reject** selected, type "already refunded in store" in the reason box, **Submit decision**.
+- Select **Reject**, type "already refunded in store" in the reason box, **Submit decision**.
 - Say: "Approving despite a warning sign would require a note. Every decision is logged with the rule version."
 
 **2:10 – 3:20 · Policy manager: stolen cards**

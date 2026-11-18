@@ -49,8 +49,12 @@ or the queue, split into 6 lanes with the reason → decision log → manager ed
 - The case card shows **why it wasn't auto-approved** (every reason, with policy number), **warning signs from the
   notes with evidence**, an AI summary labelled "verify", the customer note marked untrusted, data problems with raw
   values, the policy-suggested action, and similar past requests with what happened after.
-- Actions: approve full / partial / reject / request info / escalate. Going against the suggestion or approving
-  despite warning signs requires a note.
+- Actions: approve full / partial / reject / request info / escalate. **The form starts empty**: the suggestion is
+  shown only in the guidance box, so reviewers choose actively instead of confirming a preselected answer (automation
+  bias). Going against the suggestion or approving despite warning signs requires a note.
+- Prompt injection (RF-1073) is a fraud signal, not a verdict: suggest **escalate**, and still check the facts
+  (never-arrived → policy #4 carrier proof of delivery).
+- Notes are read by two layers: keyword scan always, LLM on top; evidence shown with its source.
 - After: append-only log with rule version and the suggested action → override rates per rule feed the manager.
 **Key point:** warning signs on the card target where 7 of 8 chargebacks came from.
 

@@ -50,7 +50,7 @@ rules:
   - id: note_warning_signs
     kind: block
     locked: true
-    description: The notes contain a warning sign (read by the LLM, or by keyword fallback without an API key).
+    description: The notes contain a warning sign (keyword scan always, plus the LLM note reader when available).
     lane: notes
     reason: "Warning signs in the notes: {note_flags}."
     when:

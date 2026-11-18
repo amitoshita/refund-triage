@@ -11,7 +11,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 and the dependen
 ```bash
 uv run refunds run data/pending.csv          # decide a file -> prints routing, writes out/decisions.csv
 uv run streamlit run app/streamlit_app.py    # clickable demo at http://localhost:8501
-uv run pytest                                # 162 tests
+uv run pytest                                # 170 tests
 ```
 
 `refunds run` accepts any CSV with the same columns as `pending.csv`. The demo can load one too (sidebar, "Requests file").
@@ -55,13 +55,20 @@ Other commands: `refunds models` (checks which configured models the key can use
 - **The LLM** (`src/refunds/llm.py`) reads both notes and returns warning flags with evidence as strict JSON.
   The schema has no way to say "approve". Notes are treated as untrusted data (RF-1073 contains a fake "system note";
   it's flagged `injection_attempt` and goes to a person). Any LLM failure means the case goes to a person.
+- **Two layers read every note.** A keyword scan (`src/refunds/signals.py`) always runs; the LLM adds flags on top and
+  can't remove any. When both find the same sign, the card shows both pieces of evidence, each labelled with its source.
+  The keyword layer is the floor if the LLM misses something or is down.
+- **Guidance, not a default.** The case card shows what policy suggests (`src/refunds/suggest.py`), but the decision
+  form starts empty, so the reviewer makes an active choice instead of confirming a preselected answer (automation
+  bias). Going against the suggestion needs a note. A prompt-injection note is treated as a fraud signal (suggest:
+  escalate), never as grounds to reject; the claim is still decided on its facts (e.g. policy #4 carrier proof).
 - **Preview** (`src/refunds/preview.py`) replays history (248 decided requests) and pending under the draft
   rules: cases that change route, $, how many newly auto-approved history cases went wrong before, and reviewer
   minutes saved.
 
 | Folder | What |
 |---|---|
-| `src/refunds/` | ingest, signals, engine, rules schema, LLM reader, preview, versions, CLI |
+| `src/refunds/` | ingest, signals, engine, rules schema, LLM reader, reviewer guidance, preview, versions, CLI |
 | `rules/` | the live rule set (`rules.yaml`) |
 | `app/` | Streamlit demo |
 | `eval/` | labelled note sets and results (`eval/RESULTS.md`) |
