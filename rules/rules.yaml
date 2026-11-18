@@ -10,6 +10,7 @@ change_note: Initial line. Auto-approve low-risk returns up to $75; everything e
 rules:
   # ---- What can be auto-approved -------------------------------------------------
   - id: low_risk_returns
+    name: Low-risk returns
     kind: eligible
     description: Low-risk return reasons can be approved automatically when no block rule applies.
     when:
@@ -18,6 +19,7 @@ rules:
 
   # ---- Send to a person ----------------------------------------------------------
   - id: fraud_flag
+    name: Fraud flag check
     kind: block
     description: Payment-provider fraud flag is set, or missing.
     policy_ref: 5
@@ -28,6 +30,7 @@ rules:
         - {field: fraud_flag, op: in, value: ["yes", unknown]}
 
   - id: bad_data
+    name: Data check
     kind: block
     locked: true
     description: Required data is missing or malformed.
@@ -38,6 +41,7 @@ rules:
         - {field: data_issues, op: not_empty}
 
   - id: duplicate_request
+    name: Duplicate check
     kind: block
     locked: true
     description: The same request ID was submitted more than once.
@@ -48,6 +52,7 @@ rules:
         - {field: is_duplicate, op: eq, value: true}
 
   - id: note_warning_signs
+    name: Warning signs in notes
     kind: block
     locked: true
     description: The notes contain a warning sign (keyword scan always, plus the LLM note reader when available).
@@ -58,6 +63,7 @@ rules:
         - {field: note_flags, op: not_empty}
 
   - id: amount_cap
+    name: Auto-approve limit
     kind: block
     description: Refunds above the auto-approve limit go to a person.
     lane: policy
@@ -67,6 +73,7 @@ rules:
         - {field: amount_usd, op: gt, value: 75}
 
   - id: repeat_refunder
+    name: Repeat refunds
     kind: block
     description: Customer already had a refund in the last 12 months.
     lane: policy
@@ -76,17 +83,19 @@ rules:
         - {field: prior_refunds_12m, op: gte, value: 1}
 
   - id: return_window
+    name: Return window
     kind: block
-    description: Change of mind or wrong size outside the 14-day return window. (Assumption, wrong size follows the change-of-mind window.)
+    description: Change of mind or wrong size outside the return window (14 days today). (Assumption, wrong size follows the change-of-mind window.)
     policy_ref: 2
     lane: policy
-    reason: "Requested {days_since_delivery} days after delivery; return window is 14 days."
+    reason: "Requested {days_since_delivery} days after delivery; return window is {limit} days."
     when:
       all:
         - {field: reason, op: in, value: [changed_mind, wrong_size]}
         - {field: days_since_delivery, op: gt, value: 14}
 
   - id: photo_required
+    name: Photo for damage claims
     kind: block
     description: Damage claims over $50 need a photo.
     policy_ref: 3
@@ -99,6 +108,7 @@ rules:
         - {field: has_photo_evidence, op: eq, value: false}
 
   - id: electronics_damage
+    name: Damaged electronics
     kind: block
     description: Damaged electronics need a person (cosmetic damage gets partials; one auto-approval became a chargeback).
     policy_ref: 6
@@ -110,6 +120,7 @@ rules:
         - {field: category, op: eq, value: electronics}
 
   - id: never_arrived_check
+    name: Carrier check
     kind: block
     description: Non-delivery claims need a carrier check (signature, delivery photo, depot backlog).
     policy_ref: 4
@@ -120,6 +131,7 @@ rules:
         - {field: reason, op: eq, value: never_arrived}
 
   - id: late_delivery_partial
+    name: Late delivery
     kind: block
     description: Late deliveries are the reviewer's call (often shipping-only refund).
     policy_ref: 6

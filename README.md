@@ -11,7 +11,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 and the dependen
 ```bash
 uv run refunds run data/pending.csv          # decide a file -> prints routing, writes out/decisions.csv
 uv run streamlit run app/streamlit_app.py    # clickable demo at http://localhost:8501
-uv run pytest                                # 170 tests
+uv run pytest                                # 172 tests
 ```
 
 `refunds run` accepts any CSV with the same columns as `pending.csv`. The demo can load one too (sidebar, "Requests file").
@@ -92,7 +92,7 @@ Pending: RF-1069 and RF-1071 auto-approved, 19 to a person. Details in `PLAN.md`
 | Drafting a rule from the manager's English (she confirms and previews) | Parsing amounts, dates, reasons, flags |
 | One-line English summary on the reviewer's card, labelled "verify" | Anything that can approve money |
 
-Model: `claude-haiku-5-5`, about $0.0002 per note. On the labelled development set it caught 41/41 notes with
+Model: `claude-haiku-5-5`, about $0.0002 per request (one call reads both notes). On the labelled development set it caught 41/41 notes with
 warning signs (keyword fallback: 36/41) with 0/27 false flags; on a held-out set written and labelled before
 running, 12/12 with 0/7 false flags. Sonnet 5.5 cost about 20x more and missed a chargeback note.
 Caveats and the full numbers: `eval/RESULTS.md`.

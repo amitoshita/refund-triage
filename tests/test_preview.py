@@ -41,7 +41,7 @@ def test_no_change_preview_is_empty(rules, data):
 
 def test_over_300_is_redundant_today(rules, data):
     p = run_preview(rules, draft(rules, add(OVER_300)), G, *data)
-    assert p.rule_diff == ["+ added 'over_300_to_us': Anything over $300 comes to us"]
+    assert len(p.rule_diff) == 1 and p.rule_diff[0].startswith("New rule: If Refund amount ($) > $300 → send to a person")
     assert all(not d.changes for d in p.datasets)
 
 
@@ -104,3 +104,17 @@ def test_publish_rejects_invalid(tmp_path):
     with pytest.raises(ValueError):
         publish(bad, "manager", "try to disable a safety rule", live, versions)
     assert load_ruleset(live).get("bad_data").enabled
+
+
+def test_rule_diff_is_plain_language(rules, data):
+    p = run_preview(rules, draft(rules, lambda d: setattr(d.get("amount_cap").when.all_[0], "value", 100)), G, *data)
+    assert p.rule_diff == ["Auto-approve limit: $75 → $100"]
+    p = run_preview(rules, draft(rules, lambda d: setattr(d.get("return_window").when.all_[1], "value", 21)), G, *data)
+    assert p.rule_diff == ["Return window: 14 days → 21 days"]
+    p = run_preview(rules, draft(rules, lambda d: setattr(d.get("repeat_refunder"), "enabled", False)), G, *data)
+    assert p.rule_diff == ["Repeat refunds: switched off"]
+
+
+def test_minutes_saved_period_is_about_11_weeks(rules, data):
+    p = run_preview(rules, draft(rules, lambda d: setattr(d.get("amount_cap").when.all_[0], "value", 100)), G, *data)
+    assert 10 <= p.history_weeks <= 12

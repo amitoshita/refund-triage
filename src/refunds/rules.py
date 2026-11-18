@@ -93,6 +93,7 @@ class Rule(BaseModel):
 
     id: str
     kind: Literal["block", "eligible"]
+    name: str | None = None  # short label for the manager, e.g. "Auto-approve limit"
     description: str  # plain English, shown to manager and reviewer
     enabled: bool = True
     when: When
@@ -108,6 +109,10 @@ class Rule(BaseModel):
         if not re.fullmatch(r"[a-z][a-z0-9_]{1,40}", v):
             raise ValueError("id must be lower_snake_case")
         return v
+
+    @property
+    def label(self) -> str:
+        return self.name or self.id.replace("_", " ").capitalize()
 
     @model_validator(mode="after")
     def _kind_fields(self) -> "Rule":

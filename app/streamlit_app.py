@@ -314,7 +314,7 @@ def find(d: dict, rule_id: str) -> dict | None:
 
 def show_preview(p):
     if p.rule_diff:
-        st.markdown("**What changes in the rules:** " + " · ".join(p.rule_diff))
+        st.markdown("**What changes in the rules:**\n" + "\n".join(f"- {line}" for line in p.rule_diff))
     for w in p.warnings:
         st.warning(w)
     for ds in p.datasets:
@@ -332,7 +332,10 @@ def show_preview(p):
         if "History" in ds.name:
             c = box.columns(2)
             c[0].metric("Newly auto, went wrong before", len(ds.newly_auto_bad))
-            c[1].metric("Reviewer minutes saved", f"{ds.minutes_saved:.0f}")
+            weeks = p.history_weeks
+            per_week = f"≈ {ds.minutes_saved / weeks:.0f} min / week" if weeks and ds.minutes_saved else None
+            c[1].metric(f"Reviewer minutes saved (over ≈{weeks:.0f} weeks of history)" if weeks else "Reviewer minutes saved",
+                        f"{ds.minutes_saved:.0f}", per_week, delta_color="off", delta_arrow="off")  # fmt: skip
         if ds.changes:
             box.dataframe(pd.DataFrame([{
                 "request": ch.request_id, "amount": money(ch.amount_usd),
@@ -345,6 +348,11 @@ def show_preview(p):
             box.caption("No request changes route.")
 
 
+def labels(d: dict) -> dict[str, str]:
+    """Rule id -> short name, for plain-English descriptions."""
+    return {x["id"]: x.get("name") or x["id"].replace("_", " ").capitalize() for x in d["rules"]}
+
+
 def rule_editor(d: dict):
     gen = st.session_state.gen
     for r in d["rules"]:
@@ -355,7 +363,7 @@ def rule_editor(d: dict):
             st.caption(f"id: {rule.id} · {rule.kind}" + (f" · policy #{rule.policy_ref}" if rule.policy_ref else ""))
             from refunds.rule_nl import describe
 
-            st.markdown(describe(rule))
+            st.markdown(describe(rule, labels(d)))
             if rule.locked:
                 st.caption("Safety rule: can't be switched off or overridden here.")
                 continue
@@ -396,7 +404,7 @@ def add_rule_forms(d: dict):
                 try:
                     from refunds.rule_nl import describe
 
-                    st.success("**Draft:** " + describe(Rule.model_validate(rule)))
+                    st.success("**Draft:** " + describe(Rule.model_validate(rule), labels(d)))
                     st.code(yaml.safe_dump(rule, sort_keys=False), language="yaml", wrap_lines=True)
                     if st.button("Add this draft to my changes", type="primary"):
                         add_rule(d, rule)

@@ -6,7 +6,7 @@ sentence, and must be added to the draft rule set and previewed before it can be
 
 import json
 
-from refunds.fields import FIELDS, OPERATORS
+from refunds.fields import FIELDS, OPERATORS, FieldType
 from refunds.llm import client, has_key
 from refunds.rules import Lane, Rule, RuleSet
 
@@ -15,11 +15,15 @@ OP_WORDS = {"gt": ">", "gte": "≥", "lt": "<", "lte": "≤", "eq": "is", "ne": 
             "is_missing": "is missing"}  # fmt: skip
 
 
-def describe(rule: Rule) -> str:
+def describe(rule: Rule, labels: dict[str, str] | None = None) -> str:
+    """``labels``: rule id -> short name, so overrides read as names instead of ids."""
+
     def cond(c):
         label = FIELDS[c.field][3]
         if c.value is None:
             return f"{label} {OP_WORDS[c.op]}"
+        if isinstance(c.value, bool):
+            return f"{label}: {'yes' if c.value == (c.op == 'eq') else 'no'}"
         v = ", ".join(map(str, c.value)) if isinstance(c.value, list) else c.value
         if c.field == "amount_usd":
             v = f"${v:,.0f}" if float(v).is_integer() else f"${v:,.2f}"
@@ -30,8 +34,11 @@ def describe(rule: Rule) -> str:
         parts.append("(" + " or ".join(cond(c) for c in rule.when.any_) + ")")
     when = " and ".join(p for p in parts if p)
     if rule.kind == "block":
-        return f"If {when} → send to a person ({rule.lane.value} lane). Reviewer sees: \"{rule.reason}\""
-    extra = f", even if blocked by: {', '.join(rule.overrides)}" if rule.overrides else ""
+        limit = next((c.value for c in rule.when.all_ + rule.when.any_ if FIELDS[c.field][0] is FieldType.NUMBER), None)
+        reason = rule.reason.replace("{limit}", f"{limit:g}") if limit is not None else rule.reason
+        return f"If {when} → send to a person ({rule.lane.value} lane). Reviewer sees: \"{reason}\""
+    names = [(labels or {}).get(o, o) for o in rule.overrides]
+    extra = f", even if blocked by: {', '.join(names)}" if names else ""
     return f"If {when} → may be auto-approved{extra} (guardrails still apply)."
 
 

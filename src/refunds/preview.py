@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from refunds.config import Guardrails
 from refunds.engine import Decision, decide
 from refunds.evaluate import bad_if_approved
-from refunds.fields import FIELDS, Source
+from refunds.fields import FIELDS, FieldType, Source
 from refunds.ingest import Case
 from refunds.rules import RuleSet
 
@@ -64,6 +64,7 @@ class Preview:
     rule_diff: list[str]
     warnings: list[str]
     datasets: list[DatasetPreview]
+    history_weeks: float | None = None  # period the history covers, to express minutes saved per week
 
 
 def _route(d: Decision) -> str:
@@ -77,15 +78,52 @@ def _minutes(c: Case) -> float | None:
         return None
 
 
+def _fmt(field: str, v) -> str:
+    if isinstance(v, list):
+        return ", ".join(str(x).replace("_", " ") for x in v)
+    if field == "amount_usd":
+        return f"${v:,.0f}" if float(v).is_integer() else f"${v:,.2f}"
+    if field == "days_since_delivery":
+        return f"{v:g} days"
+    if isinstance(v, bool):
+        return "yes" if v else "no"
+    return str(v).replace("_", " ")
+
+
 def diff_rules(current: RuleSet, draft: RuleSet) -> list[str]:
+    """Plain-language summary for the manager, e.g. "Auto-approve limit: $75 → $100"."""
+    from refunds.rule_nl import describe  # local import: rule_nl pulls in the LLM client
+
     cur, new = {r.id: r for r in current.rules}, {r.id: r for r in draft.rules}
-    out = [f"+ added '{i}': {new[i].description}" for i in new.keys() - cur.keys()]
-    out += [f"- removed '{i}': {cur[i].description}" for i in cur.keys() - new.keys()]
+    labels = {r.id: r.label for r in draft.rules}
+    out = [f"New rule: {describe(new[i], labels)}" for i in new.keys() - cur.keys()]
+    out += [f"Removed rule: {cur[i].label}" for i in cur.keys() - new.keys()]
     for i in cur.keys() & new.keys():
-        a, b = cur[i].model_dump(), new[i].model_dump()
-        if a != b:
-            changed = [k for k in a if a[k] != b[k]]
-            out.append(f"~ changed '{i}' ({', '.join(changed)})")
+        a, b = cur[i], new[i]
+        if a == b:
+            continue
+        name = b.label
+        if a.enabled != b.enabled:
+            out.append(f"{name}: switched {'on' if b.enabled else 'off'}")
+        ca, cb = a.when.all_ + a.when.any_, b.when.all_ + b.when.any_
+        same_shape = len(ca) == len(cb) and all((x.field, x.op) == (y.field, y.op) for x, y in zip(ca, cb))
+        if same_shape:
+            for x, y in zip(ca, cb):
+                if x.value != y.value:
+                    # One threshold in the rule: the rule name says it all ("Auto-approve limit: $75 → $100").
+                    numeric = [c for c in cb if FIELDS[c.field][0] is FieldType.NUMBER]
+                    label = "" if len(numeric) == 1 and numeric[0] is y else f"{FIELDS[y.field][3].lower()}: "
+                    out.append(f"{name}: {label}{_fmt(y.field, x.value)} → {_fmt(y.field, y.value)}")
+        elif a.when != b.when:
+            out.append(f"{name}: conditions changed. Now: {describe(b, labels)}")
+        if a.lane != b.lane:
+            out.append(f"{name}: now goes to the {b.lane.value if b.lane else '-'} lane")
+        if a.reason != b.reason:
+            out.append(f"{name}: new reviewer message: \"{b.reason}\"")
+        if a.overrides != b.overrides:
+            out.append(f"{name}: now lifts: {', '.join(cur[o].label if o in cur else o for o in b.overrides) or 'nothing'}")
+        if a.description != b.description or a.name != b.name:
+            out.append(f"{name}: description edited")
     return sorted(out)
 
 
@@ -153,4 +191,9 @@ def run_preview(current: RuleSet, draft: RuleSet, g: Guardrails, history: list[C
         datasets.append(preview_dataset(
             "History, PROXY: as if the fraud team had filled a 'confirmed stolen' field (from outcome notes)",
             with_fraud_confirmation_proxy(history), current, draft, g, history=True))  # fmt: skip
-    return Preview(diff_rules(current, draft), warnings, datasets)
+    return Preview(diff_rules(current, draft), warnings, datasets, history_weeks(history))
+
+
+def history_weeks(cases: list[Case]) -> float | None:
+    dates = [c.requested_at for c in cases if c.requested_at]
+    return ((max(dates) - min(dates)).days + 1) / 7 if len(dates) > 1 else None

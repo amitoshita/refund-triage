@@ -7,8 +7,8 @@ False flags = harmless notes that got a flag (cost: about 2 minutes of review ea
 | Reader | Recall | Right flag | False flags | Cost |
 |---|---|---|---|---|
 | Keyword fallback | 36/41 (88%) | 35/41 | 4/27 | $0 |
-| claude-haiku-5-5 | 41/41 (100%) | 41/41 | 0/27 | $0.0138 for 67 notes |
-| claude-sonnet-5-5 (prompt v3) | 40/41 (98%), missed RF-2111 | 40/41 | 0/27 | $0.2770 for 67 notes |
+| claude-haiku-5-5 | 41/41 (100%) | 41/41 | 0/27 | $0.0138 for 67 requests (one call reads both notes) |
+| claude-sonnet-5-5 (prompt v3) | 40/41 (98%), missed RF-2111 | 40/41 | 0/27 | $0.2770 for 67 requests |
 
 Fallback misses: RF-2111, RF-1065 (both chargebacks), RF-1047, RF-2082, RF-2020.
 Caveats: I wrote the labels, and I tuned the prompt on this set (v1 → v4; v4 removed every example phrase
@@ -27,7 +27,7 @@ AI assistant that wrote the prompt, so they are not fully independent. Next step
 traffic, labelled by reviewers.
 
 ## Model choice
-claude-haiku-5-5: passes the recall bar on both sets, about $0.0002 per note (about 2 cents per 100 requests).
+claude-haiku-5-5: passes the recall bar on both sets, about $0.0002 per request (one call reads both notes; requests with no notes cost nothing), about 2 cents per 100 requests.
 Sonnet 5.5 costs about 20 times more and missed a chargeback note.
 
 ## Backtest on history (248 decided requests, rules v1)
