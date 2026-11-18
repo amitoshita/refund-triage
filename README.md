@@ -35,16 +35,27 @@ Other commands: `refunds models` (checks which configured models the key can use
 
 ## How it works
 
-```
- CSV ──► ingest ──────────► signals ─────────────────────► engine ─────────────► auto-approve (logged)
-         normalise messy     staff note: photo? fraud-team   rules.yaml (data,       │
-         values; bad data    confirmed? (strict phrases)     versioned) + config     └► reviewer queue (lane + every reason)
-         becomes an issue,   notes: warning flags            guardrails ($500 max,        │
-         duplicates flagged  (LLM, or keyword fallback)      kill switch)                 └► decision log (SQLite, append-only)
-                                    ▲
-                     LLM can only ADD flags. It never approves.
+**Deciding a request**
 
- Policy manager: edit / add rule ─► preview on history + pending (+ labelled proxy) ─► publish vN+1 ─► rollback
+```mermaid
+flowchart LR
+    csv["CSV file<br/>(pending.csv or same columns)"] --> ingest["Ingest and normalise<br/>messy values fixed or flagged,<br/>duplicates marked"]
+    ingest --> signals["Signals<br/>keyword scan (always)<br/>+ LLM note reader"]
+    signals --> engine{"Rule engine<br/>rules.yaml<br/>+ guardrails"}
+    engine -->|"eligible, nothing blocks"| auto["Auto-approve<br/>(logged)"]
+    engine -->|any rule fires| queue["Reviewer queue<br/>lane + every reason"]
+    queue --> log[("Decision log<br/>append-only")]
+    auto --> log
+    llmnote["LLM can only ADD warning flags.<br/>It never approves."] -.- signals
+```
+
+**Changing a rule (policy manager)**
+
+```mermaid
+flowchart LR
+    edit["Edit or add a rule<br/>(form, quick change, or English)"] --> preview["Preview on history + pending<br/>what changes, $, went wrong before"]
+    preview --> publish["Publish new version<br/>(needs a reason)"]
+    publish --> rollback["Rollback<br/>(previewed, republishes an old version)"]
 ```
 
 - **The money decision is deterministic.** `src/refunds/engine.py` applies the rules in `rules/rules.yaml`.
