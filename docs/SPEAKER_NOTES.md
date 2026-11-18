@@ -3,7 +3,7 @@
 Source: `docs/slides/slides.html` (rebuild with `python docs/slides/build_pdf.py`). Every number on the slides comes
 from the code: `refunds backtest`, `refunds eval-notes [--heldout]`, and the Policy manager preview (LLM note reader).
 
-## 1 · Today a refund can pass through eight parties
+## 1 · Today a refund passes through many hands
 - Customers submit through two channels: the web form (RF-1xxx) and the support desk (RF-2xxx), where an agent writes the support note.
 - The old auto-rule is approximately: under $55, no refunds in the last 12 months, account 9+ months old, fraud flag "no". It approved 111 of 248 (45%).
 - Reviewer decisions: S. Kwan 45, R. Mizrahi 40, D. Patel 28, J. Alvarez 24. Never-arrived claims take the most time (450 of 1,119 minutes, median 9 minutes each).
@@ -20,7 +20,7 @@ from the code: `refunds backtest`, `refunds eval-notes [--heldout]`, and the Pol
 - The old rule's 4 bad approvals: RF-2037, RF-2046, RF-2121 (damage over $50 with no photo) and RF-2074 (chargeback). Together $205.
 - Keyword scan alone (no API key): 105 auto, $3,308, 0 went wrong. The LLM's value is catching risk, not coverage.
 - Time-to-refund: measured from the request date (date only) to `decided_at`. Human-reviewed: median 40 hours (≈1.7 days). The old rule's batch: median 15 hours. Of the requests the new line auto-approves, 24 went to reviewers before (≈2 a week, median wait 36 hours).
-- Money: the old rule's 4 wrong approvals were RF-2037 $52, RF-2046 $53, RF-2121 $51.26 (damage over $50 paid with no photo, against policy #3) and RF-2074 $49 + $25 fee (chargeback): $230 in 11 weeks. Scaled linearly to ~300 requests a week that's ≈$280 a week, but it rests on 4 cases, so I keep it off the slide. Rules without the note check: RF-1006 $32, RF-1021 $58, RF-2059 $72 = $162 (all correctly rejected by reviewers).
+- Money: the old rule made 4 wrong approvals: 1 chargeback ($74: RF-2074, $49 + $25 fee) and 3 refunds against policy ($156: RF-2037 $52, RF-2046 $53, RF-2121 $51.26, damage over $50 paid with no photo, policy #3). Only the chargeback is a known loss; the 3 no-photo refunds broke policy but may have been genuine claims. Rules without the note check: RF-1006 $32, RF-1021 $58, RF-2059 $72 = $162 (all correctly rejected by reviewers).
 - Reviewer hours: 106 auto in 11.3 weeks ≈ 9.4 a week × 8.2 min average review ≈ 1.3 hours a week at the sample's volume (22 a week), against reviewing everything. The brief says "a few hundred refund requests a week" and the files are a sample: at ~300 a week, 43% ≈ 128 auto-approvals × 8.2 min ≈ 17 hours a week. Against today's rule the workload is about flat: 24 requests leave the queue (55 logged minutes); 29 the old rule approved now go to a person (no logged time; ≈145 minutes at the 5-minute median). Net ≈ +8 reviewer minutes a week, in exchange for the 4 bad approvals. The 300/week figure is a linear extrapolation of the 43% share.
 - Why $75: the preview for $100 adds RF-2140 ($82) and RF-2165 ($90.56). Neither went wrong, but 2 cases in 11 weeks is too small to justify the extra risk.
 - Rule of three: 0 errors in 106 means the error rate is below ≈3/106 ≈ 2.8% with 95% confidence.

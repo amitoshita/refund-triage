@@ -85,7 +85,7 @@ confirmed by staff if over $50), **up to $75**, no refunds in the last 12 months
 warning signs in the notes. Everything else goes to a person.
 
 Backtest on 248 decided requests: 106 auto-approved (43%, $3,346), 0 that went wrong historically (chargebacks,
-correct rejections, partials, policy violations). The old rule auto-approved 111, 4 of them wrong.
+correct rejections, partials, policy violations). The old rule auto-approved 111, with 4 wrong approvals: 1 chargeback ($74) and 3 refunds against policy ($156).
 Pending: RF-1069 and RF-1071 auto-approved, 19 to a person. Details in `PLAN.md` and `eval/RESULTS.md`.
 
 ## AI: where it's used and where it isn't
