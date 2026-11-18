@@ -4,7 +4,7 @@ Decides which refund requests can be approved automatically and sends the rest t
 Includes the two mechanisms from the brief: a **reviewer queue** and a **policy manager** who changes rules
 without an engineer and previews the impact before anything goes live.
 
-**Write-up:** [docs/slides.pdf](docs/slides.pdf) (8 slides) · **Screen recording:** [VIDEO LINK, to be added](#) (≈4 min)
+**Write-up:** [docs/slides.pdf](docs/slides.pdf) (8 slides) · **Screen recording:** [Watch on Google Drive](https://drive.google.com/file/d/1Yq1tbDcB_uL04jM9WrIch4Le6q6c4ZgH/view?usp=sharing) (≈4 min)
 
 ## Run
 
