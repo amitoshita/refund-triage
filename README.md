@@ -4,6 +4,8 @@ Decides which refund requests can be approved automatically and sends the rest t
 Includes the two mechanisms from the brief: a **reviewer queue** and a **policy manager** who changes rules
 without an engineer and previews the impact before anything goes live.
 
+**Write-up:** [docs/slides.pdf](docs/slides.pdf) (8 slides) · **Screen recording:** [VIDEO LINK, to be added](#) (≈4 min)
+
 ## Run
 
 Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 and the dependencies on first run).

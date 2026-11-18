@@ -20,7 +20,8 @@ from the code: `refunds backtest`, `refunds eval-notes [--heldout]`, and the Pol
 - The old rule's 4 bad approvals: RF-2037, RF-2046, RF-2121 (damage over $50 with no photo) and RF-2074 (chargeback). Together $205.
 - Keyword scan alone (no API key): 105 auto, $3,308, 0 went wrong. The LLM's value is catching risk, not coverage.
 - Time-to-refund: measured from the request date (date only) to `decided_at`. Human-reviewed: median 40 hours (≈1.7 days). The old rule's batch: median 15 hours. Of the requests the new line auto-approves, 24 went to reviewers before (≈2 a week, median wait 36 hours).
-- Reviewer hours: 106 auto in 11.3 weeks ≈ 9.4 a week × 8.2 min average review ≈ 1.3 hours a week, against reviewing everything. Against today's rule the workload is about flat: 24 requests leave the queue (55 logged minutes); 29 the old rule approved now go to a person (no logged time; ≈145 minutes at the 5-minute median). Net ≈ +8 reviewer minutes a week, in exchange for the 4 bad approvals. The 1,000 requests/week figure is a linear extrapolation of the 43% share.
+- Money: the old rule's 4 wrong approvals were RF-2037 $52, RF-2046 $53, RF-2121 $51.26 (damage over $50 paid with no photo, against policy #3) and RF-2074 $49 + $25 fee (chargeback): $230 in 11 weeks. Scaled linearly to ~300 requests a week that's ≈$280 a week, but it rests on 4 cases, so I keep it off the slide. Rules without the note check: RF-1006 $32, RF-1021 $58, RF-2059 $72 = $162 (all correctly rejected by reviewers).
+- Reviewer hours: 106 auto in 11.3 weeks ≈ 9.4 a week × 8.2 min average review ≈ 1.3 hours a week at the sample's volume (22 a week), against reviewing everything. The brief says "a few hundred refund requests a week" and the files are a sample: at ~300 a week, 43% ≈ 128 auto-approvals × 8.2 min ≈ 17 hours a week. Against today's rule the workload is about flat: 24 requests leave the queue (55 logged minutes); 29 the old rule approved now go to a person (no logged time; ≈145 minutes at the 5-minute median). Net ≈ +8 reviewer minutes a week, in exchange for the 4 bad approvals. The 300/week figure is a linear extrapolation of the 43% share.
 - Why $75: the preview for $100 adds RF-2140 ($82) and RF-2165 ($90.56). Neither went wrong, but 2 cases in 11 weeks is too small to justify the extra risk.
 - Rule of three: 0 errors in 106 means the error rate is below ≈3/106 ≈ 2.8% with 95% confidence.
 
@@ -40,7 +41,7 @@ from the code: `refunds backtest`, `refunds eval-notes [--heldout]`, and the Pol
 - The audit sample is drawn from auto-approvals: 100% in week 1, 10% after that.
 
 ## 7 · AI
-- Cost: dev set $0.0138 for 67 requests with Haiku 5.5 ≈ $0.00021 per request with notes. 17% of requests have no notes and skip the call, so the average is ≈ $0.00017. Sonnet 5.5: $0.277 for the same set.
+- Cost: dev set $0.0138 for 67 requests with Haiku 5.5 ≈ $0.00021 per request with notes. 17% of requests have no notes and skip the call, so the average is ≈ $0.00017. At ~300 requests a week: ≈ $0.05 a week, ≈ $3 a year. Sonnet 5.5: $0.277 for the same set.
 - Prompt history: v1 over-flagged reason_mismatch; v2's fraud_suspected blocked genuine stolen-card reports; v4 removed every example phrase that overlapped the eval. Details are in `AI_NOTES.md` and `eval/RESULTS.md`.
 - The "unreadable" fallback without an LLM: 20 customer notes (long, non-English or containing digits) go to a person.
 
