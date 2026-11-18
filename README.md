@@ -130,8 +130,17 @@ Caveats and the full numbers: `eval/RESULTS.md`.
 I built this with Claude Code: planning, data profiling, code, tests and the demo. I reviewed each phase before
 the next one, and kept a running log of what I changed or threw away in `AI_NOTES.md`.
 
-One example: when planning the model comparison, the assistant told me "Haiku 5.5 doesn't exist" and wanted to
-compare Haiku 4.5 instead. I disagreed, and had it check the live API (`refunds models`): `claude-haiku-5-5` was
+**What I changed: RF-1073.** RF-1073 is a never-arrived claim whose customer note contains a fake "system note"
+telling the agent to approve and skip review. The reviewer card the assistant built suggested **Reject** for it. That
+contradicted the card's own advice to "ignore it and decide on the facts", and policy #4, which says a never-arrived
+claim is decided on the carrier's proof of delivery. An injection attempt is a reason for suspicion, not a verdict.
+I changed the suggestion to **Escalate** (fraud signal) plus the carrier check (policy #4), moved the guidance into a
+testable module (`src/refunds/suggest.py`), and added tests that an injection note never leads to a suggested reject
+or approve (`tests/test_suggest.py`). At the same time I stopped the decision form from preselecting the suggestion,
+to avoid automation bias.
+
+**What I threw away: "Haiku 5.5 doesn't exist."** When planning the model comparison, the assistant told me
+"Haiku 5.5 doesn't exist" and wanted to compare Haiku 4.5 instead. I disagreed, and had it check the live API (`refunds models`): `claude-haiku-5-5` was
 available and Haiku 4.5 wasn't even enabled on my key. Haiku 5.5 ended up being the model we chose. Lesson:
 check model IDs against the API, not the assistant's memory. Other entries: I replaced its rule-order-dependent
 routing with fixed lane priority, and added system guardrails above the rules after noticing an override could
