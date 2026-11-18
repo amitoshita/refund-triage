@@ -446,11 +446,20 @@ def add_rule(d: dict, rule: dict):
     rule["id"] = re.sub(r"[^a-z0-9_]", "", rule["id"].lower()) or "new_rule"
     if not rule["id"][0].isalpha():
         rule["id"] = "r_" + rule["id"]
-    if find(d, rule["id"]):
-        rule["id"] += "_2"
+    base, n = rule["id"], 2
+    while find(d, rule["id"]):  # similar rules are allowed, but ids must stay unique
+        rule["id"], n = f"{base}_{n}", n + 1
     set_draft({**d, "rules": d["rules"] + [rule]})
     st.session_state.pop("nl", None)
     st.rerun()
+
+
+def add_example(d: dict, rule: dict):
+    """Quick-change buttons: clicking again must not add a second copy."""
+    if find(d, rule["id"]):
+        st.info("Already in your changes.")
+        return
+    add_rule(d, yaml.safe_load(yaml.safe_dump(rule)))
 
 
 def load_ruleset_from(d: dict) -> RuleSet:
@@ -470,9 +479,9 @@ def policy_page():
         set_draft(nd)
         st.rerun()
     if q[1].button("Anything over $300 comes to us"):
-        add_rule(d, dict(OVER_300))
+        add_example(d, OVER_300)
     if q[2].button("Stolen-card cases go straight through"):
-        add_rule(d, yaml.safe_load(yaml.safe_dump(STOLEN)))
+        add_example(d, STOLEN)
     if q[3].button("Discard my changes"):
         st.session_state.pop("draft", None)
         st.session_state.pop("preview", None)
