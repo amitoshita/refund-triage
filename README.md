@@ -78,6 +78,13 @@ flowchart LR
 - **Preview** (`src/refunds/preview.py`) replays history (248 decided requests) and pending under the draft
   rules: cases that change route, $, how many newly auto-approved history cases went wrong before, and reviewer
   minutes saved.
+- **Carrier-incident banner.** When 3 or more open cases carry the `carrier_incident` warning flag, the reviewer
+  queue shows one banner listing them so they can be handled together (today: 6 cases about the Northfield depot,
+  RF-2196 to RF-2201, written six different ways, one in Spanish). These parcels may still arrive: in history,
+  RF-2194 "finally came, 12 days late" during the same Northfield backlog. Detection is simple: the flag comes from
+  the keyword scan (words like "Northfield", "depot", "stuck", "parado") plus the LLM note reader; there's no carrier
+  data feed. Flagged cases also go to a person, like any warning sign. Next step: hold these cases and recheck
+  tracking before refunding, instead of refunding first and having the parcel turn up.
 
 | Folder | What |
 |---|---|
